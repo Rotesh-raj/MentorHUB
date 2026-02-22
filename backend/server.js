@@ -27,17 +27,16 @@ const httpServer = createServer(app);
 
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://dsi-connection.vercel.app"
+  "https://dsi-connection-git-main-riteshrajs-projects-5747e8e6.vercel.app",
+  "https://dsi-connection-bi0z88mmf-riteshrajs-projects-5747e8e6.vercel.app"
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (
-        !origin || // allow Postman or server-side requests
-        origin.includes("vercel.app") ||
-        origin.includes("localhost")
-      ) {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
@@ -51,17 +50,11 @@ app.use(
 
 const io = new Server(httpServer, {
   cors: {
-    origin: (origin, callback) => {
-      if (
-        !origin ||
-        origin.includes("vercel.app") ||
-        origin.includes("localhost")
-      ) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by Socket CORS"));
-      }
-    },
+    origin: [
+      "http://localhost:5173",
+      "https://dsi-connection-git-main-riteshrajs-projects-5747e8e6.vercel.app",
+      "https://dsi-connection-bi0z88mmf-riteshrajs-projects-5747e8e6.vercel.app"
+    ],
     methods: ["GET", "POST"],
     credentials: true
   }

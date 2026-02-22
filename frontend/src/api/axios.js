@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://dsi-connection.onrender.com",
+  baseURL: "https://dsi-connection.onrender.com/api",
   withCredentials: true
 });
 

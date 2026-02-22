@@ -6,7 +6,6 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 
 import connectDB from "./config/db.js";
-import { setupSocket } from "./config/socket.js";
 import errorMiddleware from "./middlewares/error.middleware.js";
 
 // ROUTES
@@ -23,37 +22,16 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
-/* ================= CORS CONFIG ================= */
-
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://dsi-connection-git-main-riteshrajs-projects-5747e8e6.vercel.app",
-  "https://dsi-connection-bi0z88mmf-riteshrajs-projects-5747e8e6.vercel.app"
-];
+/* ================= CORS ================= */
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: true,
     credentials: true
   })
 );
 
-/* ================= SOCKET.IO ================= */
-
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
-
-/* ================= MIDDLEWARES ================= */
+/* ================= MIDDLEWARE ================= */
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -63,9 +41,19 @@ app.use(cookieParser());
 
 connectDB();
 
-/* ================= SOCKET SETUP ================= */
+/* ================= SOCKET.IO ================= */
 
-setupSocket(io);
+const io = new Server(httpServer, {
+  cors: {
+    origin: true,
+    credentials: true
+  }
+});
+
+// simple connection log
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+});
 
 /* ================= ROUTES ================= */
 
@@ -77,7 +65,7 @@ app.use("/api/availability", availabilityRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/admin", adminRoutes);
 
-/* ================= HEALTH CHECK ================= */
+/* ================= HEALTH ================= */
 
 app.get("/api/health", (req, res) => {
   res.json({
@@ -86,21 +74,20 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-/* ================= ERROR HANDLER ================= */
+/* ================= ERROR ================= */
 
 app.use(errorMiddleware);
 
-/* ================= 404 HANDLER ================= */
+/* ================= 404 ================= */
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-/* ================= START SERVER ================= */
+/* ================= START ================= */
 
 const PORT = process.env.PORT || 5000;
 
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
-

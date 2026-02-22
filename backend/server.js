@@ -48,17 +48,10 @@ app.use(
 
 /* ================= SOCKET.IO ================= */
 
-const io = new Server(httpServer, {
-  cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://dsi-connection-git-main-riteshrajs-projects-5747e8e6.vercel.app",
-      "https://dsi-connection-bi0z88mmf-riteshrajs-projects-5747e8e6.vercel.app"
-    ],
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-});
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 
 /* ================= MIDDLEWARES ================= */
 

@@ -33,7 +33,7 @@ const io = new Server(httpServer, {
 // Middlewares
 app.use(
   cors({
-    origin: "https://dsi-connection-riteshrajs-projects-5747e8e6.vercel.app",
+    origin: "https://dsi-connection.vercel.app",
     credentials: true
   })
 );

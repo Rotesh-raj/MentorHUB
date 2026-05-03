@@ -18,7 +18,8 @@ export const SocketProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
   useEffect(() => {
     if (isAuthenticated && user) {
-      const newSocket = io('http://localhost:5000', {
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+      const newSocket = io(socketUrl, {
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000

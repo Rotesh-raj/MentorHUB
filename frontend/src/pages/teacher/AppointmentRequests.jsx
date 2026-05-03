@@ -159,7 +159,7 @@ const AppointmentRequests = () => {
                           Mark Complete
                         </button>
                         <Link
-                          to={`/teacher/chat/${appointment.studentId?._id}`}
+                          to={`/teacher/chat/${appointment._id}`}
                           className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm"
                         >
                           Chat

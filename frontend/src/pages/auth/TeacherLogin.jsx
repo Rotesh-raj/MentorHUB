@@ -18,22 +18,28 @@ const TeacherLogin = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const user = await login(formData.email, formData.password);
-      success('Login successful!');
-      if (user.role === 'teacher') {
-        navigate('/teacher');
-      } else {
-        navigate('/');
-      }
-    } catch (err) {
-      error(err.response?.data?.message || 'Login failed. Please try again.');
-    } finally {
-      setLoading(false);
+  e.preventDefault();
+  setLoading(true);
+
+  try {
+    const user = await login(formData.email, formData.password);
+
+    // 🔥 ROLE VALIDATION FIRST
+    if (user.role !== 'teacher') {
+      error("Please login from teacher section.");
+      return;  // 🚨 STOP HERE
     }
-  };
+
+    // ✅ Only if correct role
+    success('Login successful!');
+    navigate('/teacher');
+
+  } catch (err) {
+    error(err.response?.data?.message || 'Login failed.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-100 flex items-center justify-center px-4">
@@ -73,6 +79,16 @@ const TeacherLogin = () => {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="••••••••"
               />
+
+              <div className="text-centre mt-2">
+  <Link
+    to="/teacher/forgot-password"
+    className="text-sm font-medium text-black-500 hover:text-red-600 transition-colors duration-300"
+  >
+    Forgot Password?
+  </Link>
+</div>
+
             </div>
 
             <button

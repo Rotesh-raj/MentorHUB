@@ -14,22 +14,27 @@ export const useSocket = () => {
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
-  const [onlineUsers, setOnlineUsers] = useState([]);
-  const { isAuthenticated } = useAuth();
-
+  const [onlineUsers, setOnlineUsers] = useState(new Map());
+  const { user, isAuthenticated } = useAuth();
   useEffect(() => {
-    if (isAuthenticated) {
-      const token = localStorage.getItem('token');
+    if (isAuthenticated && user) {
       const newSocket = io('http://localhost:5000', {
-        auth: { token }
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
       });
 
       newSocket.on('connect', () => {
-        console.log('Socket connected');
+        console.log('✅ Socket Connected');
+        newSocket.emit('join_user', user._id);
       });
 
-      newSocket.on('receive_message', (message) => {
-        console.log('Received message:', message);
+      newSocket.on('user_status', ({ userId, status }) => {
+        setOnlineUsers(prev => {
+          const newMap = new Map(prev);
+          newMap.set(userId, status);
+          return newMap;
+        });
       });
 
       setSocket(newSocket);
@@ -37,26 +42,38 @@ export const SocketProvider = ({ children }) => {
       return () => {
         newSocket.disconnect();
       };
+    } else {
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
+      }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?._id]);
 
-  const joinChat = (roomId) => {
-    if (socket) {
-      socket.emit('join_chat', roomId);
+  const joinChatRoom = (appointmentId) => {
+    if (socket && user) {
+      socket.emit('join_chat', { appointmentId, userId: user._id });
     }
   };
 
-  const sendMessage = (receiverId, message, appointmentId) => {
-    if (socket) {
-      socket.emit('send_message', { receiverId, message, appointmentId });
+  const emitTyping = (roomId) => {
+    if (socket && user) {
+      socket.emit("typing", { roomId, userId: user._id, userName: user.name });
+    }
+  };
+
+  const emitStopTyping = (roomId) => {
+    if (socket && user) {
+      socket.emit("stop_typing", { roomId, userId: user._id });
     }
   };
 
   const value = {
     socket,
     onlineUsers,
-    joinChat,
-    sendMessage
+    joinChatRoom,
+    emitTyping,
+    emitStopTyping
   };
 
   return (

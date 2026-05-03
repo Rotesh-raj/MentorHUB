@@ -1,22 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
+import api from '../../api/axios';
 
 const StudentRegister = () => {
   const [formData, setFormData] = useState({
     usn: '',
-    name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    collegeId: ''
   });
+  const [colleges, setColleges] = useState([]);
 
   const [loading, setLoading] = useState(false);
 
   const { studentRegister } = useAuth();
   const { success, error } = useNotification();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchColleges = async () => {
+      try {
+        const res = await api.get("/college");
+        setColleges(res.data);
+      } catch (err) {
+        console.error("Failed to load colleges", err);
+      }
+    };
+    fetchColleges();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -36,9 +50,9 @@ const StudentRegister = () => {
     try {
       const user = await studentRegister({
         usn: formData.usn,
-        name: formData.name,
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        collegeId: formData.collegeId
       });
 
       success('Registration successful!');
@@ -78,6 +92,24 @@ const StudentRegister = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                College
+              </label>
+              <select
+                name="collegeId"
+                value={formData.collegeId}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              >
+                <option value="" disabled>Select College</option>
+                {colleges.map(c => (
+                  <option key={c._id} value={c._id}>{c.name} ({c.code})</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 USN (University Seat Number)
               </label>
               <input
@@ -91,20 +123,7 @@ const StudentRegister = () => {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="John Doe"
-              />
-            </div>
+           
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

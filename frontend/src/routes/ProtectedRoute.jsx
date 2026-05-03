@@ -4,6 +4,9 @@ import { useAuth } from '../context/AuthContext';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user, loading } = useAuth();
 
+  const normalizedRole = user?.role?.toLowerCase().trim();
+  const normalizedAllowed = allowedRoles?.map(r => r.toLowerCase().trim()) || [];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -12,18 +15,12 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !normalizedRole) {
     return <Navigate to="/" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    if (user?.role === 'student') {
-      return <Navigate to="/student" replace />;
-    } else if (user?.role === 'teacher') {
-      return <Navigate to="/teacher" replace />;
-    } else if (user?.role === 'admin') {
-      return <Navigate to="/admin" replace />;
-    }
+  if (!normalizedAllowed.includes(normalizedRole)) {
+    return <Navigate to="/" replace />;
   }
 
   return children;

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
+import api from '../../api/axios';
 
 const TeacherRegister = () => {
   const [formData, setFormData] = useState({
@@ -10,12 +11,26 @@ const TeacherRegister = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    department: ''
+    department: '',
+    collegeId: ''
   });
+  const [colleges, setColleges] = useState([]);
   const [loading, setLoading] = useState(false);
   const { teacherRegister } = useAuth();
   const { success, error } = useNotification();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchColleges = async () => {
+      try {
+        const res = await api.get("/college");
+        setColleges(res.data);
+      } catch (err) {
+        console.error("Failed to load colleges", err);
+      }
+    };
+    fetchColleges();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -36,7 +51,8 @@ const TeacherRegister = () => {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        department: formData.department
+        department: formData.department,
+        collegeId: formData.collegeId
       });
       success('Registration successful!');
       navigate('/teacher');
@@ -57,6 +73,24 @@ const TeacherRegister = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                College
+              </label>
+              <select
+                name="collegeId"
+                value={formData.collegeId}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white"
+              >
+                <option value="" disabled>Select College</option>
+                {colleges.map(c => (
+                  <option key={c._id} value={c._id}>{c.name} ({c.code})</option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Staff ID

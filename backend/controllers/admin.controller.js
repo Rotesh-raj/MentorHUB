@@ -1,208 +1,500 @@
-import User from '../models/User.js';
-import ApprovedStudent from '../models/ApprovedStudent.js';
-import ApprovedTeacher from '../models/ApprovedTeacher.js';
-import Appointment from '../models/Appointment.js';
-import Message from '../models/Message.js';
-import { parseCSV } from '../utils/csvParser.js';
-
-// Upload approved students
 import fs from "fs";
+import User from "../models/User.js";
+import ApprovedStudent from "../models/ApprovedStudent.js";
+import ApprovedTeacher from "../models/ApprovedTeacher.js";
+import Appointment from "../models/Appointment.js";
+import { parseCSV, validateStudentCSV, validateTeacherCSV, mapStudentRow, mapTeacherRow } from "../utils/csvParser.js";
+import CSVUpload from "../models/CSVUpload.js";
 
 export const uploadStudents = async (req, res) => {
+  // Always clean up uploaded temp file when we're done
+  const cleanup = () => {
+    if (req.file?.path) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+  };
+
   try {
     if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
+      return res.status(400).json({ success: false, message: "No file uploaded." });
     }
 
-    // read CSV file from uploads folder
-    const fileContent = fs.readFileSync(req.file.path, "utf-8");
-    const students = await parseCSV(fileContent);
+    // ✅ Step 1 — File extension guard (multer might pass non-csv on some configs)
+    if (!req.file.originalname.toLowerCase().endsWith(".csv")) {
+      cleanup();
+      return res.status(400).json({
+        success: false,
+        message: "❌ Invalid file type. Please upload a .csv file only."
+      });
+    }
 
-    const formattedStudents = students.map(student => ({
-      usn: (student.usn || student.USN).toUpperCase(),
-      name: student.name || student.Name,
-      department: student.department || student.Department,
-      semester: parseInt(student.semester || student.Semester) || 1,
-      email: student.email || student.Email,
-      registered: false
-    }));
+    // ✅ Step 2 — Parse CSV
+    const fileContent = fs.readFileSync(req.file.path, "utf-8").trim();
 
-    const operations = formattedStudents.map(student => ({
+    if (!fileContent) {
+      cleanup();
+      return res.status(400).json({
+        success: false,
+        message: "❌ Uploaded CSV file is empty. Please upload a valid CSV file."
+      });
+    }
+
+    const rows = await parseCSV(fileContent);
+
+    // ✅ Step 3 — Column validation (flexible alias matching)
+    const validation = validateStudentCSV(rows);
+    if (!validation.valid) {
+      cleanup();
+      return res.status(400).json({ success: false, message: validation.message });
+    }
+
+    const { columnMap } = validation;
+
+    // ✅ Step 4 — Map + row-level filter (skip rows with missing required fields)
+    const validStudents   = [];
+    const invalidRowCount = { value: 0 };
+
+    for (const student of rows) {
+      const mapped = mapStudentRow(student, columnMap);
+
+      // Only accept rows where all required fields are present
+      if (mapped.usn && mapped.name && mapped.year && mapped.section && mapped.department) {
+        validStudents.push(mapped);
+      } else {
+        invalidRowCount.value++;
+      }
+    }
+
+    if (validStudents.length === 0) {
+      cleanup();
+      return res.status(400).json({
+        success: false,
+        message: `❌ No valid student rows found. ${invalidRowCount.value} rows were skipped due to missing required fields.`
+      });
+    }
+
+    // ✅ Step 5 — Create CSV Upload Record (Pending Approval)
+    const csvUpload = await CSVUpload.create({
+      uploadedBy: req.user._id,
+      collegeId: req.user.collegeId,
+      department: req.user.department,
+      type: "student",
+      fileName: req.file.originalname,
+      status: "pending",
+      recordsCount: validStudents.length
+    });
+
+    // ✅ Step 6 — Detect which USNs already exist (for duplicate count reporting)
+    const incomingUSNs  = validStudents.map(s => s.usn);
+    const existingDocs  = await ApprovedStudent.find({ usn: { $in: incomingUSNs }, collegeId: req.user.collegeId }).select("usn");
+    const existingUSNs  = new Set(existingDocs.map(d => d.usn));
+    const duplicateCount = existingUSNs.size;
+
+    // ✅ Step 7 — Upsert (update existing, insert new, SET approved: false)
+    const operations = validStudents.map(student => ({
       updateOne: {
-        filter: { usn: student.usn },
-        update: student,
+        filter: { usn: student.usn, collegeId: req.user.collegeId },
+        update: { 
+          $set: {
+            ...student,
+            collegeId: req.user.collegeId,
+            uploadBatchId: csvUpload._id,
+            approved: false // Requires superadmin approval
+          }
+        },
         upsert: true
       }
     }));
 
-    await ApprovedStudent.bulkWrite(operations);
+    await ApprovedStudent.bulkWrite(operations, { ordered: false });
 
-    // delete file after upload
-    fs.unlinkSync(req.file.path);
+    cleanup();
+
+    const newCount = validStudents.length - duplicateCount;
 
     res.json({
-      message: `Successfully uploaded ${formattedStudents.length} students`,
-      count: formattedStudents.length
+      success: true,
+      message: `✅ CSV uploaded successfully. Pending SuperAdmin approval.`,
+      count: validStudents.length,
+      duplicatesSkipped: duplicateCount,
+      rowsSkipped: invalidRowCount.value,
+      batchId: csvUpload._id
     });
 
   } catch (error) {
+    cleanup();
     console.error("UPLOAD STUDENTS ERROR:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Upload approved teachers
+/* ================= UPLOAD TEACHERS ================= */
 export const uploadTeachers = async (req, res) => {
+  const cleanup = () => {
+    if (req.file?.path) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+  };
+
   try {
     if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
+      return res.status(400).json({ success: false, message: "No file uploaded." });
     }
 
-    const fileContent = fs.readFileSync(req.file.path, "utf-8");
-    const teachers = await parseCSV(fileContent);
+    // ✅ Step 1 — Extension guard
+    if (!req.file.originalname.toLowerCase().endsWith(".csv")) {
+      cleanup();
+      return res.status(400).json({
+        success: false,
+        message: "❌ Invalid file type. Please upload a .csv file only."
+      });
+    }
 
-    const formattedTeachers = teachers.map(teacher => ({
-      staffId: (teacher.staffId || teacher.staffID || teacher.StaffId || teacher.StaffID).toUpperCase(),
-      name: teacher.name || teacher.Name,
-      department: teacher.department || teacher.Department,
-      email: teacher.email || teacher.Email,
-      registered: false
-    }));
+    // ✅ Step 2 — Parse
+    const fileContent = fs.readFileSync(req.file.path, "utf-8").trim();
 
-    const operations = formattedTeachers.map(teacher => ({
+    if (!fileContent) {
+      cleanup();
+      return res.status(400).json({
+        success: false,
+        message: "❌ Uploaded CSV file is empty. Please upload a valid CSV file."
+      });
+    }
+
+    const rows = await parseCSV(fileContent);
+
+    // ✅ Step 3 — Column validation (flexible alias matching)
+    const validation = validateTeacherCSV(rows);
+    if (!validation.valid) {
+      cleanup();
+      return res.status(400).json({ success: false, message: validation.message });
+    }
+
+    const { columnMap } = validation;
+
+    // ✅ Step 4 — Map + row-level filter
+    const validTeachers   = [];
+    const invalidRowCount = { value: 0 };
+
+    // Basic email regex
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    for (const teacher of rows) {
+      const mapped = mapTeacherRow(teacher, columnMap);
+
+      const emailValid = mapped.email && emailRe.test(mapped.email);
+
+      if (mapped.staffId && mapped.name && emailValid && mapped.department) {
+        validTeachers.push(mapped);
+      } else {
+        invalidRowCount.value++;
+      }
+    }
+
+    if (validTeachers.length === 0) {
+      cleanup();
+      return res.status(400).json({
+        success: false,
+        message: `❌ No valid teacher rows found. ${invalidRowCount.value} rows were skipped due to missing or invalid fields.`
+      });
+    }
+
+    // ✅ Step 5 — Create CSV Upload Record (Pending Approval)
+    const csvUpload = await CSVUpload.create({
+      uploadedBy: req.user._id,
+      collegeId: req.user.collegeId,
+      department: req.user.department,
+      type: "teacher",
+      fileName: req.file.originalname,
+      status: "pending",
+      recordsCount: validTeachers.length
+    });
+
+    // ✅ Step 6 — Count duplicates
+    const incomingIDs    = validTeachers.map(t => t.staffId);
+    const existingDocs   = await ApprovedTeacher.find({ staffId: { $in: incomingIDs }, collegeId: req.user.collegeId }).select("staffId");
+    const duplicateCount = existingDocs.length;
+
+    // ✅ Step 7 — Upsert (SET approved: false)
+    const operations = validTeachers.map(teacher => ({
       updateOne: {
-        filter: { staffId: teacher.staffId },
-        update: teacher,
+        filter: { staffId: teacher.staffId, collegeId: req.user.collegeId },
+        update: { 
+          $set: {
+            ...teacher,
+            collegeId: req.user.collegeId,
+            uploadBatchId: csvUpload._id,
+            approved: false // Requires superadmin approval
+          }
+        },
         upsert: true
       }
     }));
 
-    await ApprovedTeacher.bulkWrite(operations);
+    await ApprovedTeacher.bulkWrite(operations, { ordered: false });
 
-    fs.unlinkSync(req.file.path);
+    cleanup();
+
+    const newCount = validTeachers.length - duplicateCount;
 
     res.json({
-      message: `Successfully uploaded ${formattedTeachers.length} teachers`,
-      count: formattedTeachers.length
+      success: true,
+      message: `✅ CSV uploaded successfully. Pending SuperAdmin approval.`,
+      count: validTeachers.length,
+      duplicatesSkipped: duplicateCount,
+      rowsSkipped: invalidRowCount.value,
+      batchId: csvUpload._id
     });
 
   } catch (error) {
+    cleanup();
     console.error("UPLOAD TEACHERS ERROR:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/* ================= GET ADMIN CSV UPLOADS ================= */
+export const getAdminCSVUploads = async (req, res) => {
+  try {
+    const uploads = await CSVUpload.find({ uploadedBy: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(10);
+    res.json(uploads);
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get platform statistics
+/* ================= GET STATS ================= */
 export const getStats = async (req, res) => {
   try {
-    const totalStudents = await User.countDocuments({ role: 'student' });
-    const totalTeachers = await User.countDocuments({ role: 'teacher' });
-    const totalAppointments = await Appointment.countDocuments();
-    const totalMessages = await Message.countDocuments();
-    
-    const approvedStudents = await ApprovedStudent.countDocuments();
-    const approvedTeachers = await ApprovedTeacher.countDocuments();
-    const registeredStudents = await ApprovedStudent.countDocuments({ registered: true });
-    const registeredTeachers = await ApprovedTeacher.countDocuments({ registered: true });
+    const filter = {};
+    if (req.user.collegeId) {
+      filter.collegeId = req.user.collegeId;
+    }
+    if (req.user.role === "admin" && req.user.department) {
+      filter.department = req.user.department;
+    }
 
-    const pendingAppointments = await Appointment.countDocuments({ status: 'pending' });
-    const completedAppointments = await Appointment.countDocuments({ status: 'completed' });
+    const studentCount = await User.countDocuments({ ...filter, role: "student" });
+    const teacherCount = await User.countDocuments({ ...filter, role: "teacher" });
+    const adminCount = await User.countDocuments({ ...filter, role: "admin" });
+    
+    // Note: To filter appointments properly by college, Appointment model would need collegeId. 
+    // For now we get the overall or we skip filtering appointments if model lacks it.
+    const appointmentCount = await Appointment.countDocuments();
+    const pendingAppointments = await Appointment.countDocuments({ status: "pending" });
 
     res.json({
-      users: {
-        totalStudents,
-        totalTeachers,
-        total: totalStudents + totalTeachers
-      },
-      approved: {
-        students: approvedStudents,
-        teachers: approvedTeachers,
-        registeredStudents,
-        registeredTeachers
-      },
-      appointments: {
-        total: totalAppointments,
-        pending: pendingAppointments,
-        completed: completedAppointments
-      },
-      messages: {
-        total: totalMessages
-      }
+      students: studentCount,
+      teachers: teacherCount,
+      admins: adminCount,
+      appointments: appointmentCount,
+      pendingAppointments
     });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Delete user
+/* ================= DELETE USER ================= */
 export const deleteUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const { id } = req.params;
+
+    const user = await User.findByIdAndDelete(id);
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // Update approved list
-    if (user.role === 'student') {
-      await ApprovedStudent.findOneAndUpdate(
-        { usn: user.referenceId },
-        { registered: false }
-      );
-    } else if (user.role === 'teacher') {
-      await ApprovedTeacher.findOneAndUpdate(
-        { staffId: user.referenceId },
-        { registered: false }
-      );
-    }
+    res.json({ message: "User deleted successfully" });
 
-    await user.deleteOne();
-
-    res.json({ message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get all users
+/* ================= GET ALL USERS ================= */
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password').sort({ createdAt: -1 });
-    res.json(users);
+    const { role, page = 1, limit = 10 } = req.query;
+
+    const query = {};
+    if (role) query.role = role;
+    if (req.user.collegeId) query.collegeId = req.user.collegeId;
+    
+    // Admin can only see users in their own department
+    if (req.user.role === "admin" && req.user.department) {
+      query.department = req.user.department;
+    }
+
+    const users = await User.find(query)
+      .select("-password")
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .sort({ createdAt: -1 });
+
+    const count = await User.countDocuments(query);
+
+    res.json({
+      users,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      total: count
+    });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get all appointments (admin view)
+/* ================= GET ALL APPOINTMENTS ================= */
 export const getAllAppointments = async (req, res) => {
   try {
-    const appointments = await Appointment.find()
-      .populate('studentId', 'name email department referenceId')
-      .populate('teacherId', 'name email department referenceId')
+    const { status, page = 1, limit = 10 } = req.query;
+
+    const query = status ? { status } : {};
+
+    const appointments = await Appointment.find(query)
+      .populate("studentId", "name email")
+      .populate("teacherId", "name email")
+      .populate("slotId")
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
-    res.json(appointments);
+
+    const count = await Appointment.countDocuments(query);
+
+    res.json({
+      appointments,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      total: count
+    });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get approved students list
+/* ================= GET APPROVED STUDENTS ================= */
 export const getApprovedStudents = async (req, res) => {
   try {
-    const students = await ApprovedStudent.find().sort({ usn: 1 });
-    res.json(students);
+    const { page = 1, limit = 10 } = req.query;
+
+    const query = {};
+    if (req.user.collegeId) query.collegeId = req.user.collegeId;
+    
+    // Admin can only see students in their own department
+    if (req.user.role === "admin" && req.user.department) {
+      query.department = req.user.department;
+    }
+
+    const students = await ApprovedStudent.find(query)
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .sort({ createdAt: -1 });
+
+    const count = await ApprovedStudent.countDocuments(query);
+
+    res.json({
+      students,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      total: count
+    });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get approved teachers list
+/* ================= GET APPROVED TEACHERS ================= */
 export const getApprovedTeachers = async (req, res) => {
   try {
-    const teachers = await ApprovedTeacher.find().sort({ staffId: 1 });
-    res.json(teachers);
+    const { page = 1, limit = 10 } = req.query;
+
+    const query = {};
+    if (req.user.collegeId) query.collegeId = req.user.collegeId;
+
+    // Admin can only see teachers in their own department
+    if (req.user.role === "admin" && req.user.department) {
+      query.department = req.user.department;
+    }
+
+    const teachers = await ApprovedTeacher.find(query)
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .sort({ createdAt: -1 });
+
+    const count = await ApprovedTeacher.countDocuments(query);
+
+    res.json({
+      teachers,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      total: count
+    });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+/* ================= DELETE DEPARTMENT STUDENT DATA ================= */
+export const deleteStudentData = async (req, res) => {
+  try {
+    const { collegeId, department } = req.user;
+
+    if (!collegeId || !department) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Admin college or department information is missing." 
+      });
+    }
+
+    const result = await ApprovedStudent.deleteMany({
+      collegeId,
+      department
+    });
+
+    res.json({
+      success: true,
+      message: `Previous department student records (${result.deletedCount}) deleted successfully.`,
+    });
+
+  } catch (error) {
+    console.error("DELETE STUDENT DATA ERROR:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/* ================= DELETE DEPARTMENT TEACHER DATA ================= */
+export const deleteTeacherData = async (req, res) => {
+  try {
+    const { collegeId, department } = req.user;
+
+    if (!collegeId || !department) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Admin college or department information is missing." 
+      });
+    }
+
+    const result = await ApprovedTeacher.deleteMany({
+      collegeId,
+      department
+    });
+
+    res.json({
+      success: true,
+      message: `Previous department teacher records (${result.deletedCount}) deleted successfully.`,
+    });
+
+  } catch (error) {
+    console.error("DELETE TEACHER DATA ERROR:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };

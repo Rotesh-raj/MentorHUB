@@ -1,6 +1,15 @@
 import mongoose from 'mongoose';
 
 const approvedTeacherSchema = new mongoose.Schema({
+  collegeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "College",
+    required: true
+  },
+  uploadBatchId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "CSVUpload"
+  },
   staffId: {
     type: String,
     required: true,
@@ -21,6 +30,10 @@ const approvedTeacherSchema = new mongoose.Schema({
     unique: true
   },
   registered: {
+    type: Boolean,
+    default: false
+  },
+  approved: {
     type: Boolean,
     default: false
   }

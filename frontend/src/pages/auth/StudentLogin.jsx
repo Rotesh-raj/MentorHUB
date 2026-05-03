@@ -17,23 +17,39 @@ const StudentLogin = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const user = await login(formData.email, formData.password);
-      success('Login successful!');
-      if (user.role === 'student') {
-        navigate('/student');
-      } else {
-        navigate('/');
-      }
-    } catch (err) {
-      error(err.response?.data?.message || 'Login failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+
+  try {
+    const user = await login(formData.email, formData.password);
+
+    // 🔥 ROLE CHECK
+  if (user?.role !== 'student') {
+
+  if (user?.role === 'teacher') {
+    error("Please login from teacher section.");
+  } 
+  else if (user?.role === 'admin') {
+    error("Please login from admin section.");
+  } 
+  else {
+    error("Unauthorized access.");
+  }
+
+  setLoading(false);
+  return;
+}
+
+    success("Login successful!");
+    navigate("/student");
+
+  } catch (err) {
+    error(err.response?.data?.message || "Login failed. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
@@ -74,6 +90,14 @@ const StudentLogin = () => {
                 placeholder="••••••••"
               />
             </div>
+<div className="text-centre mt-2">
+  <Link
+    to="/student/forgot-password"
+    className="text-sm font-medium text-black-500 hover:text-red-600 transition-colors duration-300"
+  >
+    Forgot Password?
+  </Link>
+</div>
 
             <button
               type="submit"
@@ -81,9 +105,14 @@ const StudentLogin = () => {
               className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               {loading ? 'Logging in...' : 'Login'}
-            </button>
-          </form>
 
+
+            </button>
+
+          
+
+          </form>
+            
           <div className="mt-6 text-center">
             <p className="text-gray-600">
               Don't have an account?{' '}

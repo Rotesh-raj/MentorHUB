@@ -1,60 +1,78 @@
+import Message from '../models/Message.js';
+import Appointment from '../models/Appointment.js';
+import { io } from '../server.js';
 
-import Message from "../models/Message.js";
-import Appointment from "../models/Appointment.js";
-
-/* ================= GET MESSAGES ================= */
+/* ================= GET MESSAGES BY APPOINTMENT ================= */
 export const getMessages = async (req, res) => {
   try {
     const { appointmentId } = req.params;
+    const userId = req.user.id;
 
+    // Verify appointment exists and user is part of it
     const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) return res.status(404).json({ message: "Appointment not found" });
 
-    if (!appointment)
-      return res.status(404).json({ message: "Appointment not found" });
+    if (appointment.studentId.toString() !== userId && appointment.teacherId.toString() !== userId) {
+      return res.status(403).json({ message: "Unauthorized to view this chat" });
+    }
 
-    // Only approved appointment can chat
-    if (appointment.status !== "approved")
-      return res.status(403).json({ message: "Chat not allowed yet" });
-
-    const messages = await Message.find({ appointmentId: appointment._id })
-
-      .populate("sender", "name role")
-      .sort({ createdAt: 1 });
+    const messages = await Message.find({ appointmentId })
+      .sort({ createdAt: 1 })
+      .populate('senderId', 'name role');
 
     res.json(messages);
-
   } catch (error) {
-    console.error("GET CHAT ERROR:", error);
-    res.status(500).json({ message: "Failed to load chat" });
+    res.status(500).json({ message: error.message });
   }
 };
-
 
 /* ================= SEND MESSAGE ================= */
 export const sendMessage = async (req, res) => {
   try {
-    const { appointmentId, message } = req.body; // <-- changed text -> message
+    const { appointmentId, message, receiverId } = req.body;
+    const senderId = req.user.id;
 
+    // 1. Verify appointment is approved
     const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) return res.status(404).json({ message: "Appointment not found" });
 
-    if (!appointment)
-      return res.status(404).json({ message: "Appointment not found" });
+    if (appointment.status !== 'approved') {
+      return res.status(403).json({ message: "Chat is only available for approved appointments" });
+    }
 
-    if (appointment.status !== "approved")
-      return res.status(403).json({ message: "Chat not allowed yet" });
-
+    // 2. Save to Database
     const newMessage = await Message.create({
+      senderId,
+      receiverId,
       appointmentId,
-      sender: req.user.id,
-      text: message // <-- map correctly
+      message
     });
 
-    const populated = await newMessage.populate("sender", "name role");
+    const populatedMessage = await Message.findById(newMessage._id).populate('senderId', 'name role');
 
-    res.status(201).json(populated);
+    // 3. Emit via Socket.IO
+    const roomId = `appointment_${appointmentId}`;
+    io.to(roomId).emit("message_received", populatedMessage);
 
+    res.status(201).json(populatedMessage);
   } catch (error) {
-    console.error("SEND CHAT ERROR:", error);
-    res.status(500).json({ message: "Failed to send message" });
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ================= MARK AS SEEN ================= */
+export const markAsSeen = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const userId = req.user.id;
+
+    await Message.updateMany(
+      { appointmentId, receiverId: userId, seen: false },
+      { $set: { seen: true } }
+    );
+
+    res.json({ message: "Messages marked as seen" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };

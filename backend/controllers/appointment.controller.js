@@ -1,31 +1,34 @@
-import Appointment from '../models/Appointment.js';
-import Availability from '../models/Availability.js';
-import User from '../models/User.js';
+import Appointment from "../models/Appointment.js";
+import Availability from "../models/Availability.js";
+import User from "../models/User.js";
+import sendEmail from "../utils/sendEmail.js";
+import { appointmentStatusEmail } from "../utils/emailTemplate.js";
 
-// Get all appointments (for admin)
+/* ================= GET ALL APPOINTMENTS (ADMIN) ================= */
 export const getAllAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find()
-      .populate('studentId', 'name email department referenceId')
-      .populate('teacherId', 'name email department')
-      .populate('slotId')
+      .populate("studentId", "name email department referenceId")
+      .populate("teacherId", "name email department")
+      .populate("slotId")
       .sort({ createdAt: -1 });
+
     res.json(appointments);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get appointment by ID
+/* ================= GET APPOINTMENT BY ID ================= */
 export const getAppointmentById = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
-      .populate('studentId', 'name email department profilePic')
-      .populate('teacherId', 'name email department profilePic')
-      .populate('slotId');
+      .populate("studentId", "name email department profilePic referenceId")
+      .populate("teacherId", "name email department profilePic")
+      .populate("slotId");
 
     if (!appointment) {
-      return res.status(404).json({ message: 'Appointment not found' });
+      return res.status(404).json({ message: "Appointment not found" });
     }
 
     res.json(appointment);
@@ -34,50 +37,84 @@ export const getAppointmentById = async (req, res) => {
   }
 };
 
-// Update appointment status
+/* ================= UPDATE STATUS (APPROVE / REJECT) ================= */
 export const updateStatus = async (req, res) => {
   try {
-    const { status } = req.body;
-    const appointment = await Appointment.findById(req.params.id);
+    const { status, reason } = req.body;
+
+    const appointment = await Appointment.findById(req.params.id)
+      .populate("studentId")
+      .populate("teacherId")
+      .populate("slotId");
 
     if (!appointment) {
-      return res.status(404).json({ message: 'Appointment not found' });
+      return res.status(404).json({ message: "Appointment not found" });
     }
 
-    // If rejecting or cancelling, free the slot
-    if (status === 'rejected' || status === 'cancelled') {
-      await Availability.findByIdAndUpdate(appointment.slotId, { isBooked: false });
+    // Free slot if rejected or cancelled - remove student from bookedStudents array
+    if (status === "rejected" || status === "cancelled") {
+      await Availability.findByIdAndUpdate(appointment.slotId._id, {
+        $pull: { bookedStudents: appointment.studentId._id }
+      });
     }
 
     appointment.status = status;
+
+    if (status === "rejected") {
+      appointment.reason = reason || "No reason provided";
+    }
+
     await appointment.save();
+
+    // 🔥 SEND EMAIL SAFELY
+    if (status === "approved" || status === "rejected") {
+      const studentEmail = appointment.studentId.email;
+
+      if (studentEmail) {
+        await sendEmail({
+          email: studentEmail,
+          subject: `${status === 'approved' ? 'Appointment Approved' : 'Appointment Rejected'} - MentorHub`,
+          message: appointmentStatusEmail({
+            studentName: appointment.studentId.name,
+            teacherName: appointment.teacherId.name,
+            topic: appointment.topic,
+            date: appointment.slotId.date,
+            time: appointment.slotId.startTime,
+            status: status === "approved" ? "Approved" : "Rejected",
+            reason: status === "rejected" ? appointment.reason : null
+          })
+        });
+      }
+    }
 
     res.json({
       message: `Appointment ${status} successfully`,
       appointment
     });
+
   } catch (error) {
+    console.error("UPDATE STATUS ERROR:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get appointment history for a user
+/* ================= GET HISTORY ================= */
 export const getHistory = async (req, res) => {
   try {
     const userId = req.user.id;
     const user = await User.findById(userId);
 
     let query = {};
-    if (user.role === 'student') {
+    if (user.role === "student") {
       query = { studentId: userId };
-    } else if (user.role === 'teacher') {
+    } else if (user.role === "teacher") {
       query = { teacherId: userId };
     }
 
     const appointments = await Appointment.find(query)
-      .populate('studentId', 'name email department profilePic')
-      .populate('teacherId', 'name email department profilePic')
-      .populate('slotId')
+      .populate("studentId", "name email department profilePic")
+      .populate("teacherId", "name email department profilePic")
+      .populate("slotId")
       .sort({ createdAt: -1 });
 
     res.json(appointments);
@@ -86,7 +123,7 @@ export const getHistory = async (req, res) => {
   }
 };
 
-// Get appointments between two users (for chat)
+/* ================= CHAT APPOINTMENTS ================= */
 export const getChatAppointments = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -94,13 +131,48 @@ export const getChatAppointments = async (req, res) => {
 
     const appointments = await Appointment.find({
       $or: [
-        { studentId: userId, teacherId: otherUserId, status: 'approved' },
-        { teacherId: userId, studentId: otherUserId, status: 'approved' }
+        { studentId: userId, teacherId: otherUserId, status: "approved" },
+        { teacherId: userId, studentId: otherUserId, status: "approved" }
       ]
-    }).populate('studentId', 'name profilePic')
-      .populate('teacherId', 'name profilePic');
+    })
+      .populate("studentId", "name profilePic")
+      .populate("teacherId", "name profilePic");
 
     res.json(appointments);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ================= GET APPOINTMENT FOR CHAT ================= */
+export const getAppointmentForChat = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { appointmentId } = req.params;
+
+    const appointment = await Appointment.findById(appointmentId)
+      .populate("studentId", "name email department profilePic referenceId")
+      .populate("teacherId", "name email department profilePic referenceId")
+      .populate("slotId");
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    if (
+      appointment.studentId._id.toString() !== userId &&
+      appointment.teacherId._id.toString() !== userId
+    ) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    if (appointment.status !== "approved") {
+      return res.status(400).json({
+        message: "Chat only available for approved appointments"
+      });
+    }
+
+    res.json(appointment);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

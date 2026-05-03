@@ -1,40 +1,78 @@
-<p align="center">
-  <a href="https://tailwindcss.com" target="_blank">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/tailwindlabs/tailwindcss/HEAD/.github/logo-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/tailwindlabs/tailwindcss/HEAD/.github/logo-light.svg">
-      <img alt="Tailwind CSS" src="https://raw.githubusercontent.com/tailwindlabs/tailwindcss/HEAD/.github/logo-light.svg" width="350" height="70" style="max-width: 100%;">
-    </picture>
-  </a>
-</p>
+# 🚀 MentorHub
 
-<p align="center">
-  A utility-first CSS framework for rapidly building custom user interfaces.
-</p>
+**MentorHub** is an AI-powered educational communication and appointment management platform designed to improve interaction between students, teachers, departments, and institutional administrators.
 
-<p align="center">
-    <a href="https://github.com/tailwindlabs/tailwindcss/actions"><img src="https://img.shields.io/github/actions/workflow/status/tailwindlabs/tailwindcss/ci.yml?branch=main" alt="Build Status"></a>
-    <a href="https://www.npmjs.com/package/tailwindcss"><img src="https://img.shields.io/npm/dt/tailwindcss.svg" alt="Total Downloads"></a>
-    <a href="https://github.com/tailwindcss/tailwindcss/releases"><img src="https://img.shields.io/npm/v/tailwindcss.svg" alt="Latest Release"></a>
-    <a href="https://github.com/tailwindcss/tailwindcss/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/tailwindcss.svg" alt="License"></a>
-</p>
+The platform enables secure academic communication, appointment scheduling, real-time chat, and department-level administration through a structured multi-role management system.
 
 ---
 
-## Documentation
+## 👥 Role-Based Management System
 
-For full documentation, visit [tailwindcss.com](https://tailwindcss.com/).
+The platform operates using five secure role levels to ensure institutional authenticity:
 
-## Community
+### 🔷 Student
+* Register only after institutional verification (CSV-backed).
+* Book appointments with teachers for doubts, projects, or mentorship.
+* Chat with teachers in real-time post-approval.
+* Use AI-powered support for guidance and navigation.
 
-For help, discussion about best practices, or any other conversation that would benefit from being searchable:
+### 🔶 Teacher
+* Set available appointment dates and time slots.
+* Approve or reject requests directly from dashboard.
+* Receive **instant email notifications** for new requests.
+* Secure real-time academic chat with students.
 
-[Discuss Tailwind CSS on GitHub](https://github.com/tailwindcss/tailwindcss/discussions)
+### 🟣 Department Admin
+* Upload approved Student and Teacher **CSV records**.
+* Manage department-level academic data.
+* Account remains inactive until SuperAdmin approval.
 
-For casual chit-chat with others using the framework:
+### 🔴 Department SuperAdmin
+* Verify and approve Admin registrations.
+* Review and validate departmental CSV records.
+* Require Main SuperAdmin activation before access.
 
-[Join the Tailwind CSS Discord Server](https://discord.gg/7NF8GNe)
+### ⚫ Main SuperAdmin
+* Platform-wide monitoring and institutional activation.
+* Manage all departments and Department SuperAdmins.
 
-## Contributing
+---
 
-If you're interested in contributing to Tailwind CSS, please read our [contributing docs](https://github.com/tailwindcss/tailwindcss/blob/main/.github/CONTRIBUTING.md) **before submitting a pull request**.
+## 📅 Key Operational Features
+
+### 1. CSV Verification & Security
+To prevent fake registrations, accounts are only activated if they match approved departmental CSV records. We validate Name, Email, Department, and Academic details.
+
+### 2. Slot Duplication Prevention
+Once a student books a specific slot, it becomes unavailable to others, ensuring zero scheduling conflicts.
+
+### 3. Email Notification System
+Teachers receive instant alerts for every new booking, allowing them to review the appointment topic and decide efficiently without manual dashboard checks.
+
+### 4. AI-Powered Assistant
+Provides guidance, appointment recommendations, and academic navigation support while reminding users to verify critical information independently.
+
+### 5. Secure Real-Time Chat
+Facilitates smooth, interactive, and professional communication between students and faculty for educational purposes.
+
+---
+
+## 🛠️ Technology Stack
+
+* **Frontend:** React, TailwindCSS, Framer Motion, Lucide Icons.
+* **Backend:** Node.js, Express, MongoDB.
+* **Real-Time:** Socket.io.
+* **Authentication:** JWT, Role-Based Access Control (RBAC).
+* **AI Integration:** Institutional Assistant for Guidance.
+
+---
+
+## 🌐 Professional Tagline
+> **"MentorHub: Connecting Students, Teachers, and Departments Smarter 🚀"**
+
+---
+
+## ⚖️ Usage Policy
+* Strictly for academic and educational purposes.
+* Requires institutional authorization.
+* Account suspension for policy violations or abusive communication.

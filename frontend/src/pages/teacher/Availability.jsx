@@ -1,193 +1,214 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import api from '../../api/axios';
-import { useNotification } from '../../context/NotificationContext';
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import api from "../../api/axios";
+import { useNotification } from "../../context/NotificationContext";
 
 const Availability = () => {
   const [availability, setAvailability] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    day: 'Monday',
-    startTime: '09:00',
-    endTime: '17:00'
-  });
   const [submitting, setSubmitting] = useState(false);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+
   const { success, error } = useNotification();
 
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const [formData, setFormData] = useState({
+    date: "",
+    startTime: "09:00",
+    endTime: "10:00",
+    maxStudents: 5
+  });
 
   useEffect(() => {
-    const fetchAvailability = async () => {
-      try {
-        const response = await api.get('/availability');
-
-        setAvailability(response.data);
-      } catch (err) {
-        error('Failed to fetch availability');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchAvailability();
   }, []);
+
+  const fetchAvailability = async () => {
+    try {
+      const response = await api.get("/availability");
+      setAvailability(response.data);
+    } catch {
+      error("Failed to fetch availability");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setSubmitting(true);
+    e.preventDefault();
+    setSubmitting(true);
 
-  try {
-    await api.post("/availability", {
-      day: formData.day,
-      startTime: formData.startTime,
-      endTime: formData.endTime
-    });
-
-    success("Availability added successfully!");
-    setShowForm(false);
-
-    const response = await api.get("/availability");
-    setAvailability(response.data);
-
-  } catch (err) {
-    error(err.response?.data?.message || "Failed to add availability");
-  } finally {
-    setSubmitting(false);
-  }
-};
-
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this slot?')) return;
     try {
-      await api.delete(`/availability/${id}`);
-      success('Availability deleted successfully!');
-      setAvailability(availability.filter(a => a._id !== id));
+      await api.post("/availability", {
+        date: formData.date,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        maxStudents: formData.maxStudents
+      });
+
+      success("Availability added successfully!");
+      setShowForm(false);
+      fetchAvailability();
     } catch (err) {
-      error('Failed to delete availability');
+      error(err.response?.data?.message || "Failed to add availability");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = (id) => {
+    setSelectedId(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      await api.delete(`/availability/${selectedId}`);
+      success("Availability deleted successfully!");
+      setAvailability(availability.filter((a) => a._id !== selectedId));
+    } catch (err) {
+      error(err.response?.data?.message || "Failed to delete availability");
+    } finally {
+      setShowDeleteModal(false);
+      setSelectedId(null);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-100">
+
       {/* Navbar */}
       <nav className="bg-green-600 text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link to="/teacher" className="text-xl font-bold">Smart Campus Connect</Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link to="/teacher" className="hover:bg-green-700 px-3 py-2 rounded">Dashboard</Link>
-              <Link to="/teacher/requests" className="hover:bg-green-700 px-3 py-2 rounded">Requests</Link>
-              <Link to="/teacher/schedule" className="hover:bg-green-700 px-3 py-2 rounded">Schedule</Link>
-            </div>
-          </div>
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <Link to="/teacher" className="text-xl font-bold">
+            Smart Campus Connect
+          </Link>
         </div>
       </nav>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-5xl mx-auto p-6">
+
+        {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Availability Management</h1>
+          <h1 className="text-3xl font-bold">Availability Management</h1>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+            className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700"
           >
-            {showForm ? 'Cancel' : '+ Add Slot'}
+            {showForm ? "Cancel" : "+ Add Slot"}
           </button>
         </div>
 
-        {/* Add Form */}
+        {/* Add Slot Form */}
         {showForm && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Add New Slot</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Day</label>
-                  <select
-                    name="day"
-                    value={formData.day}
-                    onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                  >
-                    {days.map(day => (
-                      <option key={day} value={day}>{day}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
-                  <input
-                    type="time"
-                    name="startTime"
-                    value={formData.startTime}
-                    onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">End Time</label>
-                  <input
-                    type="time"
-                    name="endTime"
-                    value={formData.endTime}
-                    onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
-                  />
-                </div>
+          <div className="bg-white shadow-xl rounded-xl p-6 mb-6">
+            <form onSubmit={handleSubmit} className="grid md:grid-cols-4 gap-4">
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Date</label>
+                <input
+                  type="date"
+                  name="date"
+                  required
+                  value={formData.date}
+                  onChange={handleChange}
+                  className="w-full border rounded-lg px-3 py-2"
+                />
               </div>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-              >
-                {submitting ? 'Adding...' : 'Add Slot'}
-              </button>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Start Time</label>
+                <input
+                  type="time"
+                  name="startTime"
+                  required
+                  value={formData.startTime}
+                  onChange={handleChange}
+                  className="w-full border rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">End Time</label>
+                <input
+                  type="time"
+                  name="endTime"
+                  required
+                  value={formData.endTime}
+                  onChange={handleChange}
+                  className="w-full border rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Max Students</label>
+                <input
+                  type="number"
+                  name="maxStudents"
+                  min="1"
+                  required
+                  value={formData.maxStudents}
+                  onChange={handleChange}
+                  className="w-full border rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div className="md:col-span-4">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  {submitting ? "Adding..." : "Add Slot"}
+                </button>
+              </div>
+
             </form>
           </div>
         )}
 
-        {/* Availability List */}
+        {/* Availability Table */}
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-          </div>
+          <div className="text-center py-10">Loading...</div>
         ) : availability.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-8 text-center">
-            <p className="text-gray-600">No availability slots set. Add your first slot!</p>
+          <div className="bg-white p-6 rounded-lg shadow text-center">
+            No availability slots created.
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="bg-white shadow rounded-xl overflow-hidden">
+            <table className="min-w-full">
+              <thead className="bg-gray-50 text-gray-600 text-sm uppercase">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">End Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-6 py-3 text-left">Date</th>
+                  <th className="px-6 py-3 text-left">Start</th>
+                  <th className="px-6 py-3 text-left">End</th>
+                  <th className="px-6 py-3 text-left">Capacity</th>
+                  <th className="px-6 py-3 text-left">Booked</th>
+                  <th className="px-6 py-3 text-left">Action</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody>
                 {availability.map((slot) => (
-                  <tr key={slot._id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{slot.day}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{slot.startTime}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{slot.endTime}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${slot.isBooked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-                        {slot.isBooked ? 'Booked' : 'Available'}
-                      </span>
+                  <tr key={slot._id} className="border-t hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      {new Date(slot.date).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-6 py-4">{slot.startTime}</td>
+                    <td className="px-6 py-4">{slot.endTime}</td>
+                    <td className="px-6 py-4">{slot.maxStudents}</td>
+                    <td className="px-6 py-4">
+                      {slot.bookedStudents?.length || 0}
+                    </td>
+                    <td className="px-6 py-4">
                       <button
                         onClick={() => handleDelete(slot._id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-800 font-medium"
                       >
                         Delete
                       </button>
@@ -199,6 +220,41 @@ const Availability = () => {
           </div>
         )}
       </div>
+
+      {/* PROFESSIONAL DELETE MODAL */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-96 p-6">
+
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">
+              Delete Availability Slot
+            </h2>
+
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this slot?
+              This action cannot be undone.
+            </p>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

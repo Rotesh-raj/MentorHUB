@@ -1,121 +1,347 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useRef, useCallback } from 'react';
 import api from '../../api/axios';
 import { useNotification } from '../../context/NotificationContext';
+import {
+  UploadCloud, FileText, X, AlertCircle,
+  CheckCircle, Download, Users, Trash2, AlertTriangle
+} from 'lucide-react';
+import CSVUploadHistory from './CSVUploadHistory';
+
+/* ── Client-side column check (mirrors backend validation) ── */
+const REQUIRED_COLS = ["student name", "usn", "email", "year", "section", "course"];
+
+const validateStudentHeaders = (headerLine) => {
+  const cols = headerLine.split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+  const missing = REQUIRED_COLS.filter(r => !cols.includes(r));
+  return missing;
+};
+
+/* ── CSV template download ── */
+const downloadTemplate = () => {
+  const content = `Student Name,USN,Email,Year,Section,Course\nJohn Doe,1PE21CS001,john@example.com,2,A,CSE\n`;
+  const blob = new Blob([content], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'students_template.csv'; a.click();
+  URL.revokeObjectURL(url);
+};
 
 const UploadStudents = () => {
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [file, setFile]         = useState(null);
+  const [csvData, setCsvData]   = useState({ headers: [], rows: [] });
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting]   = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [clientError, setClientError] = useState('');
+  const inputRef = useRef(null);
   const { success, error } = useNotification();
 
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      
-      // Read file preview
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target.result;
-        const lines = text.split('\n').slice(0, 6); // First 5 rows + header
-        setPreview(lines);
-      };
-      reader.readAsText(selectedFile);
-    }
+  /* ── Preview first 5 rows ── */
+  const previewCSV = (text) => {
+    const lines = text.split('\n').filter(l => l.trim());
+    if (lines.length < 2) return;
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const rows    = lines.slice(1, 6).map(line =>
+      line.split(',').map(v => v.trim().replace(/"/g, ''))
+    );
+    setCsvData({ headers, rows });
   };
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    if (!file) {
-      error('Please select a file');
+  /* ── Client-side file validation ── */
+  const validateAndSet = useCallback((selectedFile) => {
+    setClientError('');
+    setCsvData({ headers: [], rows: [] });
+    setFile(null);
+
+    if (!selectedFile) return;
+
+    if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
+      setClientError('❌ Invalid file type. Please upload a .csv file only.');
       return;
     }
+
+    if (selectedFile.size === 0) {
+      setClientError('❌ The selected file is empty.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text    = e.target.result;
+      const firstLine = text.split('\n')[0] || '';
+      const missing   = validateStudentHeaders(firstLine);
+
+      if (missing.length > 0) {
+        setClientError(
+          `❌ Invalid Student CSV format. Missing columns: ${missing.map(c => c.replace(/\b\w/g, l => l.toUpperCase())).join(', ')}.\n` +
+          `Required: Student Name, USN, Email, Year, Section, Course`
+        );
+        return;
+      }
+
+      setFile(selectedFile);
+      previewCSV(text);
+    };
+    reader.readAsText(selectedFile);
+  }, []);
+
+  const handleFileChange  = (e) => validateAndSet(e.target.files[0]);
+  const handleDrop        = (e) => {
+    e.preventDefault(); setDragOver(false);
+    validateAndSet(e.dataTransfer.files[0]);
+  };
+  const handleDragOver    = (e) => { e.preventDefault(); setDragOver(true); };
+  const handleDragLeave   = () => setDragOver(false);
+
+  const clearFile = () => {
+    setFile(null); setCsvData({ headers: [], rows: [] });
+    setClientError('');
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  /* ── Upload ── */
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (!file) { error('Please select a CSV file.'); return; }
+    if (clientError) return;
 
     setUploading(true);
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await api.post('/admin/upload/students', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+      const res = await api.post('/admin/upload/students', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-      success(`Successfully uploaded ${response.data.count} students!`);
-      setFile(null);
-      setPreview([]);
+      success(res.data.message || `✅ ${res.data.count || 0} students uploaded!`);
+      clearFile();
     } catch (err) {
-      error(err.response?.data?.message || 'Failed to upload students');
+      error(err.response?.data?.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
     }
   };
 
+  /* ── Delete Existing Data ── */
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await api.delete('/admin/delete/students');
+      success(res.data.message || 'Department student data cleared successfully.');
+      setShowConfirm(false);
+    } catch (err) {
+      error(err.response?.data?.message || 'Failed to delete data. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Navbar */}
-      <nav className="bg-purple-600 text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link to="/admin" className="text-xl font-bold">Smart Campus Connect - Admin</Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link to="/admin" className="hover:bg-purple-700 px-3 py-2 rounded">Dashboard</Link>
-              <Link to="/admin/upload/teachers" className="hover:bg-purple-700 px-3 py-2 rounded">Upload Teachers</Link>
-              <Link to="/admin/manage-users" className="hover:bg-purple-700 px-3 py-2 rounded">Manage Users</Link>
-            </div>
+    <div className="space-y-6 max-w-3xl">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+            <Users size={20} className="text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Upload Students</h1>
+            <p className="text-sm text-gray-500">Bulk import approved students via CSV</p>
           </div>
         </div>
-      </nav>
+        <button
+          onClick={downloadTemplate}
+          className="flex items-center gap-2 text-sm text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors font-medium"
+        >
+          <Download size={15} /> Download Template
+        </button>
+      </div>
 
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">Upload Approved Students</h1>
+      {/* Format guide */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <FileText size={18} className="text-amber-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800 mb-1">Required CSV Columns</p>
+            <div className="flex flex-wrap gap-2">
+              {['Student Name', 'USN', 'Email', 'Year', 'Section', 'Course'].map(col => (
+                <code key={col} className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-md font-mono">
+                  {col}
+                </code>
+              ))}
+            </div>
+            <p className="text-xs text-amber-600 mt-2">Column names are case-insensitive. Extra columns are ignored.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Client error */}
+      {clientError && (
+        <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+          <AlertCircle size={18} className="text-red-500 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-red-700 whitespace-pre-line">{clientError}</p>
+        </div>
+      )}
+
+      {/* Drop zone */}
+      <form onSubmit={handleUpload}>
+        <div
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onClick={() => !file && inputRef.current?.click()}
+          className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-200 cursor-pointer
+            ${dragOver    ? 'border-blue-400 bg-blue-50'  : ''}
+            ${file        ? 'border-green-300 bg-green-50 cursor-default' : ''}
+            ${!file && !dragOver ? 'border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/50' : ''}
+          `}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          {file ? (
+            <div className="flex items-center justify-center gap-4">
+              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <CheckCircle size={24} className="text-green-600" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-gray-800 text-sm">{file.name}</p>
+                <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB · {csvData.rows.length} rows previewed</p>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); clearFile(); }}
+                className="ml-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="w-14 h-14 bg-white border border-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                <UploadCloud size={26} className={dragOver ? 'text-blue-500' : 'text-gray-400'} />
+              </div>
+              <p className="text-sm font-semibold text-gray-700 mb-1">
+                {dragOver ? 'Drop your CSV here' : 'Drag & drop your CSV file here'}
+              </p>
+              <p className="text-xs text-gray-400">or click to browse · .csv files only</p>
+            </>
+          )}
+        </div>
+
+        {/* Preview table */}
+        {csvData.rows.length > 0 && (
+          <div className="mt-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              Preview (first {csvData.rows.length} rows)
+            </p>
+            <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm">
+              <table className="min-w-full text-xs">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {csvData.headers.map((h, i) => (
+                      <th key={i} className="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 bg-white">
+                  {csvData.rows.map((row, ri) => (
+                    <tr key={ri} className="hover:bg-gray-50">
+                      {row.map((cell, ci) => (
+                        <td key={ci} className="px-4 py-2.5 text-gray-700 max-w-[150px] truncate">{cell}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Submit */}
+        <button
+          type="submit"
+          disabled={!file || uploading || !!clientError}
+          className="mt-6 w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold py-3.5 px-6 rounded-xl transition-all duration-200 shadow-sm disabled:cursor-not-allowed disabled:shadow-none"
+        >
+          {uploading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Uploading Students...
+            </>
+          ) : (
+            <>
+              <UploadCloud size={18} />
+              Upload Students{file ? ` — ${file.name.slice(0, 20)}` : ''}
+            </>
+          )}
+        </button>
+      </form>
+
+      {/* ── DELETE SECTION ── */}
+      <div className="mt-12 bg-white rounded-2xl border border-red-100 overflow-hidden shadow-sm">
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4 text-red-600">
+            <AlertTriangle size={24} />
+            <h2 className="text-lg font-bold">Delete Existing Student Data</h2>
+          </div>
           
-          <div className="mb-6 p-4 bg-yellow-50 rounded-lg">
-            <h3 className="font-semibold text-yellow-800 mb-2">CSV Format Requirements:</h3>
-            <p className="text-sm text-yellow-700">
-              The CSV file should contain the following columns: usn, name, department, semester, email
+          <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6">
+            <p className="text-sm text-red-700 leading-relaxed">
+              ⚠️ <strong>Warning:</strong> Deleting existing data will permanently remove previous uploaded records for your department. This action cannot be undone. Registered student accounts will remain safe.
             </p>
           </div>
 
-          <form onSubmit={handleUpload} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select CSV File
-              </label>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleFileChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3"
-              />
-            </div>
-
-            {/* File Preview */}
-            {preview.length > 0 && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-2">File Preview (First 5 rows):</h3>
-                <pre className="text-sm text-gray-600 overflow-x-auto">
-                  {preview.join('\n')}
-                </pre>
-              </div>
-            )}
-
+          {!showConfirm ? (
             <button
-              type="submit"
-              disabled={!file || uploading}
-              className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+              onClick={() => setShowConfirm(true)}
+              className="flex items-center justify-center gap-2 w-full py-3 px-6 bg-white border border-red-200 text-red-600 font-semibold rounded-xl hover:bg-red-50 transition-all duration-200"
             >
-              {uploading ? 'Uploading...' : 'Upload Students'}
+              <Trash2 size={18} />
+              Delete Existing Student Data
             </button>
-          </form>
+          ) : (
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <p className="text-sm font-semibold text-gray-700 text-center">Are you sure? This action is permanent.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  disabled={deleting}
+                  className="flex-1 py-3 px-6 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex-1 py-3 px-6 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {deleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>Confirm Delete</>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* CSV Upload History Component */}
+      <CSVUploadHistory />
+
     </div>
   );
 };

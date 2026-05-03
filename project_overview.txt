@@ -1,0 +1,783 @@
+SECTION 1 — PROJECT STRUCTURE
+
+```
+d:/PROJECT/Smart-campus-connection/
+├── README.md
+├── TODO.md
+├── package-lock.json
+├── backend/
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── server.js                          # Main backend entry point
+│   ├── config/
+│   │   ├── db.js                          # MongoDB connection
+│   │   └── socket.js
+│   ├── controllers/                       # All controllers (auth, student, teacher, admin, etc.)
+│   │   ├── admin.controller.js
+│   │   ├── ai.controller.js
+│   │   ├── appointment.controller.js
+│   │   ├── auth.controller.js
+│   │   ├── availability.controller.js
+│   │   ├── message.controller.js
+│   │   ├── student.controller.js
+│   │   ├── superadmin.controller.js
+│   │   └── teacher.controller.js
+│   ├── middlewares/                       # Auth, role, upload, error middlewares
+│   │   ├── auth.middleware.js
+│   │   ├── error.middleware.js
+│   │   ├── role.middleware.js
+│   │   └── upload.middleware.js
+│   ├── models/                            # Mongoose models
+│   │   ├── Appointment.js
+│   │   ├── ApprovedStudent.js
+│   │   ├── ApprovedTeacher.js
+│   │   ├── Availability.js
+│   │   ├── Message.js
+│   │   └── User.js                        # Main user model
+│   ├── routes/                            # Express routes
+│   │   ├── admin.routes.js
+│   │   ├── ai.routes.js
+│   │   ├── appointment.routes.js
+│   │   ├── auth.routes.js                 # Authentication routes
+│   │   ├── availability.routes.js
+│   │   ├── message.routes.js
+│   │   ├── student.routes.js
+│   │   ├── superadmin.routes.js
+│   │   └── teacher.routes.js
+│   ├── utils/                             # Utilities (JWT, email, validators, CSV parser)
+│   │   ├── csvParser.js
+│   │   ├── emailTemplate.js
+│   │   ├── jwt.js
+│   │   ├── sendEmail.js
+│   │   └── validators.js
+│   └── uploads/                           # Uploaded CSV files (ignored for overview)
+├── frontend/
+│   ├── index.html                         # Entry HTML
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── postcss.config.js
+│   ├── tailwind.config.js
+│   ├── vite.config.js
+│   └── src/
+│       ├── App.jsx                        # Main app with routes
+│       ├── index.css
+│       ├── main.jsx                       # React entry
+│       ├── api/
+│       │   └── axios.js                   # API client
+│       ├── context/                       # React contexts (Auth, Socket, Notification)
+│       │   ├── AuthContext.jsx
+│       │   ├── NotificationContext.jsx
+│       │   └── SocketContext.jsx
+│       ├── hooks/
+│       │   └── useTokenExpiration.js
+│       ├── pages/                         # All pages by role
+│       │   ├── admin/
+│       │   │   ├── AdminAuth.jsx
+│       │   │   ├── AdminDashboard.jsx
+│       │   │   ├── ManageUsers.jsx
+│       │   │   ├── UploadStudents.jsx
+│       │   │   └── UploadTeachers.jsx
+│       │   ├── auth/
+│       │   │   ├── AdminLogin.jsx
+│       │   │   ├── ResetPassword.jsx
+│       │   │   ├── StudentLogin.jsx
+│       │   │   ├── StudentRegister.jsx
+│       │   │   ├── TeacherLogin.jsx
+│       │   │   └── TeacherRegister.jsx
+│       │   ├── common/
+│       │   │   ├── Contact.jsx
+│       │   │   ├── Developer.jsx
+│       │   │   ├── Feedback.jsx
+│       │   │   ├── Help.jsx
+│       │   │   ├── NotFound.jsx
+│       │   │   └── Profile.jsx
+│       │   ├── components/
+│       │   │   ├── AIAssistant.jsx
+│       │   │   └── RightMenu.jsx
+│       │   ├── student/
+│       │   │   ├── BookAppointment.jsx
+│       │   │   ├── Chat.jsx
+│       │   │   ├── StudentAppointments.jsx
+│       │   │   ├── StudentDashboard.jsx
+│       │   │   └── TeachersList.jsx
+│       │   ├── superadmin/
+│       │   │   └── SuperAdminDashboard.jsx
+│       │   └── teacher/
+│       │       ├── AppointmentRequests.jsx
+│       │       ├── Availability.jsx
+│       │       ├── Chat.jsx
+│       │       ├── TeacherDashboard.jsx
+│       │       ├── TodaySchedule.jsx
+│       │       └── DSi.png
+│       └── routes/
+│           ├── ProtectedRoute.jsx         # Role-based protection
+│           └── RoleRoute.jsx
+
+(Ignoring node_modules and upload CSVs)
+```
+
+SECTION 2 — IMPORTANT FILES CODE
+
+=== backend/package.json ===
+```
+{"name":"smart-campus-connect-backend","version":"1.0.0","description":"Smart Campus Connect - Enterprise College Platform Backend","main":"server.js","type":"module","scripts":{"start":"node server.js","dev":"node --watch server.js"},"dependencies":{"bcryptjs":"^2.4.3","cookie-parser":"^1.4.7","cors":"^2.8.5","csv-parse":"^5.5.2","csv-parser":"^3.2.0","dotenv":"^16.4.7","express":"^4.18.2","jsonwebtoken":"^9.0.2","mongoose":"^8.9.5","multer":"^1.4.5-lts.1","nodemailer":"^8.0.1","openai":"^4.77.0","socket.io":"^4.8.1"}}
+```
+
+=== frontend/package.json ===
+```
+{"name":"smart-campus-connect-frontend","private":true,"version":"1.0.0","type":"module","scripts":{"dev":"vite","build":"vite build","preview":"vite preview"},"dependencies":{"axios":"^1.6.2","lucide-react":"^0.575.0","react":"^18.2.0","react-dom":"^18.2.0","react-router-dom":"^6.21.0","socket.io-client":"^4.6.1"},"devDependencies":{"@types/react":"^18.2.43","@types/react-dom":"^18.2.17","@vitejs/plugin-react":"^4.2.1","autoprefixer":"^10.4.17","postcss":"^8.4.35","tailwindcss":"^3.4.1","vite":"^5.0.12"}}
+```
+
+=== backend/server.js (Main Backend Entry) ===
+```
+import dotenv from "dotenv";
+dotenv.config(); // MUST be first
+
+import express from "express";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+
+import connectDB from "./config/db.js";
+import errorMiddleware from "./middlewares/error.middleware.js";
+
+/* ================= ROUTES ================= */
+import authRoutes from "./routes/auth.routes.js";
+import studentRoutes from "./routes/student.routes.js";
+import teacherRoutes from "./routes/teacher.routes.js";
+import appointmentRoutes from "./routes/appointment.routes.js";
+import availabilityRoutes from "./routes/availability.routes.js";
+import messageRoutes from "./routes/message.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import aiRoutes from "./routes/ai.routes.js";
+import superadminRoutes from "./routes/superadmin.routes.js";
+
+/* ================= AUTO DELETE IMPORT ================= */
+import { autoDeleteOldAvailability } from "./controllers/availability.controller.js";
+
+/* ================= INITIALIZE ================= */
+const app = express();
+const httpServer = createServer(app);
+
+/* ================= DATABASE ================= */
+connectDB();
+
+/* ================= CORS ================= */
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "http://localhost:5174"],
+    credentials: true
+  })
+);
+
+/* ================= MIDDLEWARE ================= */
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+/* ================= SOCKET.IO ================= */
+const io = new Server(httpServer, {
+  cors: {
+    origin: ["http://localhost:5173", "http://localhost:5174"],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+// Export io if needed in controllers
+export { io };
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  socket.on("join_user", (userId) => {
+    socket.join(userId);
+    console.log(`User ${userId} joined their personal room`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+/* ================= ROUTES ================= */
+app.use("/api/auth", authRoutes);
+app.use("/api/student", studentRoutes);
+app.use("/api/teacher", teacherRoutes);
+app.use("/api/appointments", appointmentRoutes);
+app.use("/api/availability", availabilityRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/superadmin", superadminRoutes);
+
+/* ================= HEALTH CHECK ================= */
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "Smart Campus Connect API is running"
+  });
+});
+
+/* ================= ERROR HANDLER ================= */
+app.use(errorMiddleware);
+
+/* ================= 404 HANDLER ================= */
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
+
+/* ================= AUTO DELETE SYSTEM ================= */
+
+// Run once on server start
+autoDeleteOldAvailability();
+
+// Run daily (24 hours)
+setInterval(() => {
+  autoDeleteOldAvailability();
+}, 24 * 60 * 60 * 1000);
+
+/* ================= START SERVER ================= */
+const PORT = process.env.PORT || 5000;
+
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
+```
+
+=== frontend/src/main.jsx ===
+```
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import App from './App.jsx'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </BrowserRouter>
+  </React.StrictMode>,
+)
+```
+
+=== frontend/src/App.jsx ===
+```
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+
+/* ================= PAGES ================= */
+import AdminAuth from "./pages/admin/AdminAuth";
+import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import Landing from "./pages/Landing";
+
+/* ================= PROTECTED ROUTE ================= */
+const ProtectedRoute = ({ children, role }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
+  if (!user) {
+    return <Navigate to="/admin-auth" />;
+  }
+
+  if (role && user.role !== role) {
+    return <Navigate to="/" />;
+  }
+
+  return children;
+};
+
+/* ================= APP ================= */
+function App() {
+  return (
+    <Routes>
+
+        {/* Public */}
+<Route path="/" element={<Landing />} />
+        <Route path="/admin-auth" element={<AdminAuth />} />
+
+        {/* 🔥 Super Admin Route */}
+        <Route
+          path="/superadmin"
+          element={
+            <ProtectedRoute role="superadmin">
+              <SuperAdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 🔥 Admin Route */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute role="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 404 Catch */}
+        <Route
+          path="*"
+          element={
+            <div style={{ padding: "50px", textAlign: "center" }}>
+              <h1>404</h1>
+              <p>The page you're looking for doesn't exist.</p>
+            </div>
+          }
+        />
+
+      </Routes>
+  );
+}
+
+export default App;
+```
+
+=== backend/routes/auth.routes.js ===
+```
+import express from "express";
+
+import {
+  studentRegister,
+  teacherRegister,
+  adminRegister,
+  login,
+  forgotPassword,
+  resetPassword,
+  checkStudentApproval,
+  checkTeacherApproval,
+  getMe
+} from "../controllers/auth.controller.js";
+
+import { protect } from "../middlewares/auth.middleware.js";
+
+const router = express.Router();
+
+/* ================= PUBLIC ROUTES ================= */
+
+router.post("/student/register", studentRegister);
+router.post("/teacher/register", teacherRegister);
+router.post("/admin/register", adminRegister);
+router.post("/login", login);
+router.post("/forgot-password", forgotPassword);
+router.put("/reset-password/:token", resetPassword);
+router.get("/check/student/:usn", checkStudentApproval);
+router.get("/check/teacher/:staffId", checkTeacherApproval);
+
+/* ================= PROTECTED ROUTES ================= */
+
+router.get("/me", protect, getMe);
+
+export default router;
+```
+
+=== frontend/src/routes/ProtectedRoute.jsx ===
+```
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { isAuthenticated, user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user?.role)) {
+    if (user?.role === 'student') {
+      return <Navigate to="/student" replace />;
+    } else if (user?.role === 'teacher') {
+      return <Navigate to="/teacher" replace />;
+    } else if (user?.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    }
+  }
+
+  return children;
+};
+
+export default ProtectedRoute;
+```
+
+=== backend/models/User.js ===
+```
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
+
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true
+    },
+
+    password: {
+      type: String,
+      required: true,
+      minlength: 6,
+      select: false // 🔥 Security improvement (hide password by default)
+    },
+
+    role: {
+      type: String,
+      enum: ["student", "teacher", "admin", "superadmin"],
+      required: true
+    },
+
+    
+    // Admin approval fields
+    isApproved: {
+      type: Boolean,
+      default: function() {
+        // Default to true for non-admin roles, false for admin
+        return this.role !== "admin";
+      }
+    },
+
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+
+    approvedAt: {
+      type: Date,
+      default: null
+    },
+
+    referenceId: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    department: {
+      type: String,
+      trim: true
+    },
+
+    year: {
+      type: String,
+      trim: true
+    },
+
+    section: {
+      type: String,
+      uppercase: true,
+      trim: true
+    },
+
+    profilePic: {
+      type: String,
+      default: ""
+    },
+
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,   // ✅ FIXED COMMA ADDED HERE
+
+    // ✅ Auto delete setting (Teacher only)
+    autoDeleteEnabled: {
+      type: Boolean,
+      default: true
+    }
+
+  },
+  { timestamps: true }
+);
+
+/* ================= PASSWORD HASH ================= */
+
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+/* ================= PASSWORD COMPARE ================= */
+
+userSchema.methods.comparePassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
+
+export default mongoose.model("User", userSchema);
+```
+
+=== frontend/src/pages/student/StudentDashboard.jsx (Sample Key Component) ===
+```
+import { Link } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import api from "../../api/axios";
+import { useState, useEffect } from "react";
+import RightMenu from "../components/RightMenu";
+
+const StudentDashboard = () => {
+  const { user, logout } = useAuth();
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        const response = await api.get("/student/appointments");
+        setAppointments(response.data.slice(0, 5));
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAppointments();
+  }, []);
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "approved":
+        return "bg-green-100 text-green-800";
+      case "rejected":
+        return "bg-red-100 text-red-800";
+      case "completed":
+        return "bg-blue-100 text-blue-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100">
+
+      {/* ================= NAVBAR ================= */}
+      <nav className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex justify-between items-center h-16">
+            <Link to="/student" className="text-xl font-bold tracking-wide">
+              Smart Campus Connect
+            </Link>
+
+            <div className="flex items-center space-x-4">
+              <Link to="/student/teachers" className="hover:bg-blue-700 px-3 py-2 rounded">
+                Teachers
+              </Link>
+              <Link to="/student/appointments" className="hover:bg-blue-700 px-3 py-2 rounded">
+                Appointments
+              </Link>
+              <Link to="/profile" className="hover:bg-blue-700 px-3 py-2 rounded">
+                Profile
+              </Link>
+
+              <RightMenu />
+
+              <button
+                onClick={logout}
+                className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded shadow"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* ================= MAIN CONTENT ================= */}
+      <div className="max-w-7xl mx-auto px-6 py-10">
+
+        {/* ===== Student Info Card ===== */}
+        <div className="bg-white shadow-lg rounded-xl p-8 mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Welcome, {user?.name} 👋
+          </h1>
+
+          <div className="grid md:grid-cols-3 gap-6 text-gray-700">
+            <div>
+              <p className="text-sm text-gray-500">USN</p>
+              <p className="font-semibold">{user?.referenceId}</p>
+            </div>
+
+            <div>
+              <p className="text-sm text-gray-500">Department</p>
+              <p className="font-semibold">{user?.department}</p>
+            </div>
+
+            <div>
+              <p className="text-sm text-gray-500">Year</p>
+              <p className="font-semibold">{user?.year}</p>
+            </div>
+
+            <div>
+              <p className="text-sm text-gray-500">Section</p>
+              <p className="font-semibold">{user?.section}</p>
+            </div>
+
+            <div>
+              <p className="text-sm text-gray-500">Email</p>
+              <p className="font-semibold">{user?.email}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== Quick Action Cards ===== */}
+        <div className="grid md:grid-cols-3 gap-6 mb-10">
+          <Link
+            to="/student/teachers"
+            className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition"
+          >
+            <div className="text-4xl mb-3">👨‍🏫</div>
+            <h3 className="text-lg font-semibold">Browse Teachers</h3>
+            <p className="text-gray-500 text-sm mt-2">
+              Find and connect with faculty members
+            </p>
+          </Link>
+
+          <Link
+            to="/student/appointments"
+            className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition"
+          >
+            <div className="text-4xl mb-3">📅</div>
+            <h3 className="text-lg font-semibold">My Appointments</h3>
+            <p className="text-gray-500 text-sm mt-2">
+              Track your bookings and status
+            </p>
+          </Link>
+
+          <Link
+            to="/profile"
+            className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition"
+          >
+            <div className="text-4xl mb-3">👤</div>
+            <h3 className="text-lg font-semibold">Manage Profile</h3>
+            <p className="text-gray-500 text-sm mt-2">
+              Update your account details
+            </p>
+          </Link>
+        </div>
+
+        {/* ===== Recent Appointments ===== */}
+        <div className="bg-white rounded-xl shadow-lg p-8">
+          <h2 className="text-2xl font-bold mb-6 text-gray-900">
+            Recent Appointments
+          </h2>
+
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+            </div>
+          ) : appointments.length === 0 ? (
+            <p className="text-gray-500 text-center py-6">
+              No appointments yet. Book one now!
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {appointments.map((appointment) => (
+                <div
+                  key={appointment._id}
+                  className="border border-gray-200 rounded-lg p-5 flex justify-between items-center"
+                >
+                  <div>
+                    <h3 className="font-semibold text-gray-900">
+                      {appointment.teacherId?.name || "Teacher"}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Topic: {appointment.topic}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {new Date(appointment.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`px-4 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                      appointment.status
+                    )}`}
+                  >
+                    {appointment.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <Link
+            to="/student/appointments"
+            className="block text-center text-blue-600 hover:underline mt-6"
+          >
+            View All Appointments →
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default StudentDashboard;
+```
+
+*Note: Additional key files exist like other dashboards, controllers, models (Appointment.js, etc.), but limited to most representative ones for brevity. Full code available in respective paths.*
+
+SECTION 3 — PACKAGE INFORMATION
+
+Backend Dependencies (from backend/package.json):
+- express, mongoose, socket.io, jsonwebtoken, bcryptjs, multer, nodemailer, openai, csv-parser, etc.
+- Scripts: npm start / npm run dev
+
+Frontend Dependencies (from frontend/package.json):
+- react, react-dom, react-router-dom, axios, socket.io-client, lucide-react
+- Dev: vite, tailwindcss, postcss
+- Scripts: npm run dev (Vite on port 5173)
+
+SECTION 4 — ERROR LOGS
+
+No console errors visible in current environment details or active terminals. Backend health check available at /api/health.
+
+SECTION 5 — PROJECT DESCRIPTION
+
+Smart Campus Connect is a full-stack enterprise platform for college campuses enabling students, teachers, admins, and superadmins to manage academic appointments, messaging, and availability.
+
+**Core Features:**
+- **Roles:** Students (book appointments), Teachers (manage availability/chat), Admins (user approval, CSV bulk upload), Superadmins (full control)
+- **Authentication:** JWT, role-based access, forgot/reset password, approval workflows
+- **Appointments:** Booking, status tracking (pending/approved/rejected/completed), auto-delete old availability
+- **Real-time:** Socket.io for chat/notifications, personal rooms by userId
+- **AI Integration:** OpenAI API routes for assistant features
+- **Bulk Operations:** CSV upload for students/teachers via admin panel
+- **Tech Stack:** Backend (Node.js/Express/MongoDB/ESM), Frontend (React 18/Vite/TailwindCSS/React Router), Tailwind UI, Axios API client, Contexts for auth/socket/notifications
+
+**Architecture:**
+- Backend: Modular REST API (/api/student, /api/teacher, etc.) with middlewares (auth/role/upload), Mongoose models (User central with role enum, isApproved flag)
+- Frontend: Role-based routing (ProtectedRoute/RoleRoute), Pages organized by role, Dashboard examples show user info, recent appointments, quick actions
+- Deployment: Local dev (backend:5000, frontend:5173), CORS configured
+
+**Key Flows:**
+1. Student registers (USN-based), admin approves via CSV → books teacher slot → real-time status/chat
+2. Teacher sets availability → auto-delete cron → manages requests
+3. Admin/superadmin: User management, uploads
+
+Ideal for campus appointment scheduling with enterprise features like approval workflows, real-time comms, and AI assistance.
+

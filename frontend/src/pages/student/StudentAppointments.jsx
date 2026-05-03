@@ -131,7 +131,7 @@ const StudentAppointments = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {appointment.status === 'approved' && (
                         <Link
-                          to={`/student/chat/${appointment.teacherId?._id}`}
+                          to={`/student/chat/${appointment._id}`}
                           className="text-blue-600 hover:text-blue-900"
                         >
                           Chat

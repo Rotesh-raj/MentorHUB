@@ -94,10 +94,14 @@ export const studentRegister = async (req, res) => {
 /* ================= FORGOT PASSWORD (INTERNAL HELPER) ================= */
 const handleForgotPassword = async (req, res, role) => {
   try {
-    const { email } = req.body;
+    const { email, deviceFingerprint } = req.body;
 
     if (!email) {
       return res.status(400).json({ message: "Please provide your registered email." });
+    }
+
+    if (!deviceFingerprint) {
+      return res.status(400).json({ message: "Security validation failed: Device ID missing." });
     }
 
     // Role-specific lookup
@@ -107,6 +111,14 @@ const handleForgotPassword = async (req, res, role) => {
     });
 
     if (!user) {
+      // Security best practice: If we want to be super strict about role validation,
+      // we check if the email exists at all but belongs to another role.
+      const userAnyRole = await User.findOne({ email: email.toLowerCase().trim() });
+      if (userAnyRole) {
+        return res.status(403).json({
+          message: `Unauthorized: This email is registered as a ${userAnyRole.role}. Please use the correct portal.`
+        });
+      }
       return res.status(404).json({
         message: `${role.charAt(0).toUpperCase() + role.slice(1)} account not found.`
       });
@@ -118,33 +130,32 @@ const handleForgotPassword = async (req, res, role) => {
 
     user.resetPasswordToken = hashedToken;
     user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.resetPasswordFingerprint = deviceFingerprint; // Bind to device
 
     await user.save({ validateBeforeSave: false });
 
     const resetURL = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
     const htmlMessage = forgotPasswordEmail(resetURL, user.name);
 
-    const emailSent = await sendEmail({
-      email: user.email,
-      subject: "Reset Your MentorHub Password",
-      message: htmlMessage
-    });
-
-    if (!emailSent) {
-      // Roll back token
-      user.resetPasswordToken  = undefined;
-      user.resetPasswordExpire = undefined;
-      await user.save({ validateBeforeSave: false });
-
-      return res.status(503).json({
-        success: false,
-        message: "Email service unavailable."
+    // Try sending email (but don't fail if it fails, as we return the link to frontend)
+    let emailSent = false;
+    try {
+      emailSent = await sendEmail({
+        email: user.email,
+        subject: "Reset Your MentorHub Password",
+        message: htmlMessage
       });
+    } catch (e) {
+      console.error("Email sending failed:", e.message);
     }
 
     res.json({
       success: true,
-      message: "Password reset link sent! Please check your email."
+      message: emailSent 
+        ? "Password reset link sent to your email and generated below." 
+        : "Email service busy. Use the secure link generated below to reset your password.",
+      resetURL, // TASK 2: Return link to frontend
+      expiresIn: "10 minutes"
     });
 
   } catch (error) {
@@ -171,12 +182,17 @@ export const adminForgotPassword = async (req, res) => {
   await handleForgotPassword(req, res, "admin");
 };
 
+/* ================= SUPERADMIN FORGOT PASSWORD ================= */
+export const superadminForgotPassword = async (req, res) => {
+  await handleForgotPassword(req, res, "superadmin");
+};
+
 /* ================= RESET PASSWORD ================= */
 // PUT /api/auth/reset-password/:token
 export const resetPassword = async (req, res) => {
   try {
     const { token } = req.params;
-    const { password, confirmPassword } = req.body;
+    const { password, confirmPassword, deviceFingerprint } = req.body;
 
     // ✅ Validate inputs
     if (!password) {
@@ -187,8 +203,12 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ message: "Password must be at least 6 characters." });
     }
 
-    if (confirmPassword && password !== confirmPassword) {
+    if (password !== confirmPassword) {
       return res.status(400).json({ message: "Passwords do not match." });
+    }
+
+    if (!deviceFingerprint) {
+      return res.status(400).json({ message: "Security validation failed: Unauthorized device." });
     }
 
     // ✅ Hash the incoming raw token to compare against DB
@@ -200,7 +220,7 @@ export const resetPassword = async (req, res) => {
         resetPasswordToken: hashedToken,
         resetPasswordExpire: { $gt: Date.now() }  // still valid
       })
-      .select("+password +resetPasswordToken +resetPasswordExpire");
+      .select("+password +resetPasswordToken +resetPasswordExpire +resetPasswordFingerprint");
 
     if (!user) {
       return res.status(400).json({
@@ -208,10 +228,18 @@ export const resetPassword = async (req, res) => {
       });
     }
 
+    // ✅ DEVICE-BOUND SECURITY CHECK
+    if (user.resetPasswordFingerprint !== deviceFingerprint) {
+      return res.status(403).json({
+        message: "❌ Unauthorized device. Reset link must be used on the same device it was requested from."
+      });
+    }
+
     // ✅ Update password — pre-save hook hashes it automatically
     user.password = password;
     user.resetPasswordToken = undefined;   // ✅ invalidate token
     user.resetPasswordExpire = undefined;
+    user.resetPasswordFingerprint = undefined;
 
     await user.save();
 
@@ -222,7 +250,7 @@ export const resetPassword = async (req, res) => {
 
   } catch (error) {
     console.error("RESET PASSWORD ERROR:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Internal server error during password reset." });
   }
 };
 

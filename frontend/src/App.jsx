@@ -18,6 +18,7 @@ import TermsConditions from "./pages/common/TermsConditions";
 import StudentForgotPassword from "./pages/auth/StudentForgotPassword";
 import TeacherForgotPassword from "./pages/auth/TeacherForgotPassword";
 import AdminForgotPassword from "./pages/auth/AdminForgotPassword";
+import SuperAdminForgotPassword from "./pages/auth/SuperAdminForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 
 /* ================= ADMIN ================= */
@@ -60,6 +61,7 @@ function App() {
         <Route path="/student/forgot-password" element={<StudentForgotPassword />} />
         <Route path="/teacher/forgot-password" element={<TeacherForgotPassword />} />
         <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
+        <Route path="/superadmin/forgot-password" element={<SuperAdminForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         
         {/* Auth Pages */}

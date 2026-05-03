@@ -4,11 +4,14 @@ import api from "../../api/axios";
 import { Mail, ArrowLeft, Loader2, CheckCircle2, ShieldCheck, Sparkles, GraduationCap } from "lucide-react";
 import { useNotification } from "../../context/NotificationContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { getDeviceFingerprint } from "../../utils/security";
+import { Copy, ExternalLink } from "lucide-react";
 
 export default function StudentForgotPassword() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [resetLink, setResetLink] = useState("");
   const { success, error } = useNotification();
 
   const handleSubmit = async (e) => {
@@ -17,12 +20,18 @@ export default function StudentForgotPassword() {
     
     setLoading(true);
     try {
+      const fingerprint = getDeviceFingerprint();
       const res = await api.post("/auth/student/forgot-password", {
         email: email.toLowerCase().trim(),
+        deviceFingerprint: fingerprint,
       });
       
+      if (res.data.resetURL) {
+        setResetLink(res.data.resetURL);
+      }
+      
       setSubmitted(true);
-      success(res.data.message || "Reset link sent! Please check your student email. 📧");
+      success(res.data.message || "Reset link generated successfully! 📧");
     } catch (err) {
       console.error(err);
       error(err.response?.data?.message || "Student account not found or reset failed.");
@@ -130,8 +139,46 @@ export default function StudentForgotPassword() {
                 <p className="text-slate-500 mb-8 leading-relaxed">
                   A reset link has been sent to <br />
                   <span className="font-semibold text-slate-700">{email}</span>. <br />
-                  Please check your inbox and spam folder.
+                  Please check your inbox.
                 </p>
+
+                {resetLink && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-8 p-4 bg-blue-50 border border-blue-100 rounded-2xl text-left"
+                  >
+                    <p className="text-[10px] uppercase font-bold text-blue-600 mb-2 flex items-center gap-1">
+                      <ShieldCheck size={12} /> Secure Reset Link (Temporary)
+                    </p>
+                    <div className="flex items-center gap-2 bg-white p-3 rounded-xl border border-blue-200 shadow-sm">
+                      <input 
+                        readOnly 
+                        value={resetLink} 
+                        className="flex-1 bg-transparent text-xs text-slate-600 focus:outline-none truncate"
+                      />
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(resetLink);
+                          success("Link copied to clipboard!");
+                        }}
+                        className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
+                        title="Copy Link"
+                      >
+                        <Copy size={16} />
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-blue-500 mt-2 font-medium italic">
+                      ⚠️ Note: This link only works on this browser/device.
+                    </p>
+                    <a 
+                      href={resetLink}
+                      className="mt-4 w-full py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 text-sm hover:bg-blue-700 transition-all"
+                    >
+                      Go to Reset Page <ExternalLink size={14} />
+                    </a>
+                  </motion.div>
+                )}
                 
                 <Link to="/student/login" className="block w-full py-4 rounded-2xl bg-blue-600 text-white font-bold shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all">
                   Back to Login

@@ -8,6 +8,7 @@ import {
   studentForgotPassword,
   teacherForgotPassword,
   adminForgotPassword,
+  superadminForgotPassword,
   resetPassword,
   checkStudentApproval,
   checkTeacherApproval,
@@ -34,6 +35,7 @@ router.post("/login", login);
 router.post("/student/forgot-password", studentForgotPassword);
 router.post("/teacher/forgot-password", teacherForgotPassword);
 router.post("/admin/forgot-password", adminForgotPassword);
+router.post("/superadmin/forgot-password", superadminForgotPassword);
 router.put("/reset-password/:token", resetPassword);
 router.get("/check/student/:usn", checkStudentApproval);
 router.get("/check/teacher/:staffId", checkTeacherApproval);

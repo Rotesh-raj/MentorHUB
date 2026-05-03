@@ -4,6 +4,7 @@ import api from "../../api/axios";
 import { Eye, EyeOff, Lock, KeyRound, Loader2, ShieldCheck, ArrowRight, XCircle, Sparkles, CheckCircle2 } from "lucide-react";
 import { useNotification } from "../../context/NotificationContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { getDeviceFingerprint } from "../../utils/security";
 
 export default function ResetPassword() {
   const { token } = useParams();
@@ -42,9 +43,12 @@ export default function ResetPassword() {
 
     try {
       setLoading(true);
+      const fingerprint = getDeviceFingerprint();
+      
       await api.put(`/auth/reset-password/${token}`, {
         password,
-        confirmPassword
+        confirmPassword,
+        deviceFingerprint: fingerprint
       });
 
       setResetSuccess(true);

@@ -114,6 +114,11 @@ resetPasswordToken: {
     default: undefined,
     select: false
   },
+  resetPasswordFingerprint: {
+    type: String,
+    default: undefined,
+    select: false
+  },
   profilePic: {
     type: String,
     default: ""

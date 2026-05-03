@@ -160,12 +160,7 @@ export default function AdminLogin() {
           </button>
         </div>
 
-        {/* SuperAdmin hint (login tab only) */}
-        {isLogin && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs">
-            <strong>💡 SuperAdmin:</strong> Email: dsiconnection.project@gmail.com | Password: Riteshraj800@
-          </div>
-        )}
+
 
         {/* Error */}
         {error && (

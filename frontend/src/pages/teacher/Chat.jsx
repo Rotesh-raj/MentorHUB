@@ -21,6 +21,7 @@ const Chat = () => {
   const [typingUser, setTypingUser] = useState(null);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const messageIdsRef = useRef(new Set()); // To prevent duplicates
 
   // Helper to check if message is from current user
   const isMyMessage = (msg) => {
@@ -31,21 +32,33 @@ const Chat = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         const appointmentRes = await api.get(`/appointments/chat-details/${appointmentId}`);
         const appointmentData = appointmentRes.data;
         setAppointment(appointmentData);
         
-        const otherUser = appointmentData.studentId._id === user._id 
-          ? appointmentData.teacherId 
-          : appointmentData.studentId;
+        const otherUser = appointmentData.teacherId._id === user._id 
+          ? appointmentData.studentId 
+          : appointmentData.teacherId;
         setPartner(otherUser);
 
+        // Fetch messages
         const messagesRes = await api.get(`/messages/${appointmentId}`);
-        setMessages(messagesRes.data);
+        const historicalMessages = messagesRes.data;
+        
+        // Populate duplicate prevention set
+        historicalMessages.forEach(msg => messageIdsRef.current.add(msg._id));
+        setMessages(historicalMessages);
         
         // Mark as seen
         await api.patch(`/messages/seen/${appointmentId}`);
+
+        // Check partner status immediately
+        if (socket) {
+          checkStatus(otherUser._id);
+        }
       } catch (err) {
+        console.error(err);
         error('Failed to load chat');
         navigate('/teacher/requests');
       } finally {
@@ -53,16 +66,20 @@ const Chat = () => {
       }
     };
     fetchData();
-  }, [appointmentId, user._id]);
+  }, [appointmentId, user?._id, socket?.id]); // Re-run if socket connects
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !partner) return;
 
     joinChatRoom(appointmentId);
+    checkStatus(partner._id);
 
     socket.on("message_received", (message) => {
       if (message.appointmentId === appointmentId) {
-        setMessages((prev) => [...prev, message]);
+        if (!messageIdsRef.current.has(message._id)) {
+          messageIdsRef.current.add(message._id);
+          setMessages((prev) => [...prev, message]);
+        }
       }
     });
 
@@ -80,12 +97,19 @@ const Chat = () => {
       }
     });
 
+    socket.on("user_online", (userId) => {
+      if (userId === partner?._id) {
+        checkStatus(userId);
+      }
+    });
+
     return () => {
       socket.off("message_received");
       socket.off("user_typing");
       socket.off("user_stop_typing");
+      socket.off("user_online");
     };
-  }, [socket, appointmentId]);
+  }, [socket, appointmentId, partner?._id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

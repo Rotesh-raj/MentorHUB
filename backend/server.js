@@ -133,7 +133,13 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("message_received", message);
   });
 
-  // 5️⃣ DISCONNECT
+  // 5️⃣ ONLINE STATUS QUERY
+  socket.on("check_status", (userId) => {
+    const isOnline = onlineUsers.has(userId);
+    socket.emit("status_response", { userId, status: isOnline ? "online" : "offline" });
+  });
+
+  // 6️⃣ DISCONNECT
   socket.on("disconnect", () => {
     let disconnectedUserId = null;
     for (let [userId, socketId] of onlineUsers.entries()) {

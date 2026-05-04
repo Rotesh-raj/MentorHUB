@@ -38,6 +38,14 @@ export const SocketProvider = ({ children }) => {
         });
       });
 
+      newSocket.on('status_response', ({ userId, status }) => {
+        setOnlineUsers(prev => {
+          const newMap = new Map(prev);
+          newMap.set(userId, status);
+          return newMap;
+        });
+      });
+
       setSocket(newSocket);
 
       return () => {
@@ -57,6 +65,12 @@ export const SocketProvider = ({ children }) => {
     }
   };
 
+  const checkStatus = (userId) => {
+    if (socket) {
+      socket.emit('check_status', userId);
+    }
+  };
+
   const emitTyping = (roomId) => {
     if (socket && user) {
       socket.emit("typing", { roomId, userId: user._id, userName: user.name });
@@ -73,6 +87,7 @@ export const SocketProvider = ({ children }) => {
     socket,
     onlineUsers,
     joinChatRoom,
+    checkStatus,
     emitTyping,
     emitStopTyping
   };

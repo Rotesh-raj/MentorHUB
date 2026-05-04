@@ -41,9 +41,20 @@ const httpServer = createServer(app);
 connectDB();
 
 /* ================= CORS ================= */
+const allowedOrigins = process.env.CORS_ORIGIN 
+  ? process.env.CORS_ORIGIN.split(",") 
+  : ["http://localhost:5173", "http://localhost:5174"];
+
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:5174"],
+    origin: (origin, callback) => {
+      // allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        return callback(new Error("CORS policy violation"), false);
+      }
+      return callback(null, true);
+    },
     credentials: true
   })
 );
@@ -76,7 +87,7 @@ app.use('/uploads', express.static('uploads', {
 /* ================= SOCKET.IO (REAL-TIME CHAT) ================= */
 const io = new Server(httpServer, {
   cors: {
-    origin: ["http://localhost:5173", "http://localhost:5174"],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   }

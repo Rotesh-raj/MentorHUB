@@ -102,23 +102,17 @@ approvedAt: {
   default: null
 },
 
-// ✅ Password reset fields — needed by forgotPassword / resetPassword flow
-resetPasswordToken: {
-  type: String,
-  default: undefined,
-  select: false   // never expose in API responses
-},
+  // ✅ Enterprise-Level Security Fields
+  resetToken: { type: String, select: false },
+  resetTokenExpiry: { type: Date, select: false },
+  resetDeviceHash: { type: String, select: false },
+  forgotPasswordAttempts: { type: Number, default: 0 },
+  forgotPasswordLastAttempt: { type: Date },
 
-  resetPasswordExpire: {
-    type: Date,
-    default: undefined,
-    select: false
-  },
-  resetPasswordFingerprint: {
-    type: String,
-    default: undefined,
-    select: false
-  },
+  // 🔥 High Security Password Reset Fields
+  passwordResetToken: { type: String, select: false },
+  passwordResetExpire: { type: Date, select: false },
+
   profilePic: {
     type: String,
     default: ""

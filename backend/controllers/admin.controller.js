@@ -5,6 +5,8 @@ import ApprovedTeacher from "../models/ApprovedTeacher.js";
 import Appointment from "../models/Appointment.js";
 import { parseCSV, validateStudentCSV, validateTeacherCSV, mapStudentRow, mapTeacherRow } from "../utils/csvParser.js";
 import CSVUpload from "../models/CSVUpload.js";
+import sendEmail from "../utils/sendEmail.js";
+import { accountRejectedEmail } from "../utils/emailTemplate.js";
 
 export const uploadStudents = async (req, res) => {
   // Always clean up uploaded temp file when we're done
@@ -19,7 +21,7 @@ export const uploadStudents = async (req, res) => {
       return res.status(400).json({ success: false, message: "No file uploaded." });
     }
 
-    // ✅ Step 1 — File extension guard (multer might pass non-csv on some configs)
+    // ✅ Step 1 — File extension guard
     if (!req.file.originalname.toLowerCase().endsWith(".csv")) {
       cleanup();
       return res.status(400).json({
@@ -41,7 +43,7 @@ export const uploadStudents = async (req, res) => {
 
     const rows = await parseCSV(fileContent);
 
-    // ✅ Step 3 — Column validation (flexible alias matching)
+    // ✅ Step 3 — Column validation
     const validation = validateStudentCSV(rows);
     if (!validation.valid) {
       cleanup();
@@ -50,14 +52,13 @@ export const uploadStudents = async (req, res) => {
 
     const { columnMap } = validation;
 
-    // ✅ Step 4 — Map + row-level filter (skip rows with missing required fields)
+    // ✅ Step 4 — Map + row-level filter
     const validStudents   = [];
     const invalidRowCount = { value: 0 };
 
     for (const student of rows) {
       const mapped = mapStudentRow(student, columnMap);
 
-      // Only accept rows where all required fields are present
       if (mapped.usn && mapped.name && mapped.year && mapped.section && mapped.department) {
         validStudents.push(mapped);
       } else {
@@ -73,7 +74,7 @@ export const uploadStudents = async (req, res) => {
       });
     }
 
-    // ✅ Step 5 — Create CSV Upload Record (Pending Approval)
+    // ✅ Step 5 — Create CSV Upload Record
     const csvUpload = await CSVUpload.create({
       uploadedBy: req.user._id,
       collegeId: req.user.collegeId,
@@ -84,13 +85,13 @@ export const uploadStudents = async (req, res) => {
       recordsCount: validStudents.length
     });
 
-    // ✅ Step 6 — Detect which USNs already exist (for duplicate count reporting)
+    // ✅ Step 6 — Detect which USNs already exist
     const incomingUSNs  = validStudents.map(s => s.usn);
     const existingDocs  = await ApprovedStudent.find({ usn: { $in: incomingUSNs }, collegeId: req.user.collegeId }).select("usn");
     const existingUSNs  = new Set(existingDocs.map(d => d.usn));
     const duplicateCount = existingUSNs.size;
 
-    // ✅ Step 7 — Upsert (update existing, insert new, SET approved: false)
+    // ✅ Step 7 — Upsert
     const operations = validStudents.map(student => ({
       updateOne: {
         filter: { usn: student.usn, collegeId: req.user.collegeId },
@@ -109,8 +110,6 @@ export const uploadStudents = async (req, res) => {
     await ApprovedStudent.bulkWrite(operations, { ordered: false });
 
     cleanup();
-
-    const newCount = validStudents.length - duplicateCount;
 
     res.json({
       success: true,
@@ -163,7 +162,7 @@ export const uploadTeachers = async (req, res) => {
 
     const rows = await parseCSV(fileContent);
 
-    // ✅ Step 3 — Column validation (flexible alias matching)
+    // ✅ Step 3 — Column validation
     const validation = validateTeacherCSV(rows);
     if (!validation.valid) {
       cleanup();
@@ -175,13 +174,10 @@ export const uploadTeachers = async (req, res) => {
     // ✅ Step 4 — Map + row-level filter
     const validTeachers   = [];
     const invalidRowCount = { value: 0 };
-
-    // Basic email regex
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     for (const teacher of rows) {
       const mapped = mapTeacherRow(teacher, columnMap);
-
       const emailValid = mapped.email && emailRe.test(mapped.email);
 
       if (mapped.staffId && mapped.name && emailValid && mapped.department) {
@@ -199,7 +195,7 @@ export const uploadTeachers = async (req, res) => {
       });
     }
 
-    // ✅ Step 5 — Create CSV Upload Record (Pending Approval)
+    // ✅ Step 5 — Create CSV Upload Record
     const csvUpload = await CSVUpload.create({
       uploadedBy: req.user._id,
       collegeId: req.user.collegeId,
@@ -215,7 +211,7 @@ export const uploadTeachers = async (req, res) => {
     const existingDocs   = await ApprovedTeacher.find({ staffId: { $in: incomingIDs }, collegeId: req.user.collegeId }).select("staffId");
     const duplicateCount = existingDocs.length;
 
-    // ✅ Step 7 — Upsert (SET approved: false)
+    // ✅ Step 7 — Upsert
     const operations = validTeachers.map(teacher => ({
       updateOne: {
         filter: { staffId: teacher.staffId, collegeId: req.user.collegeId },
@@ -234,8 +230,6 @@ export const uploadTeachers = async (req, res) => {
     await ApprovedTeacher.bulkWrite(operations, { ordered: false });
 
     cleanup();
-
-    const newCount = validTeachers.length - duplicateCount;
 
     res.json({
       success: true,
@@ -280,8 +274,6 @@ export const getStats = async (req, res) => {
     const teacherCount = await User.countDocuments({ ...filter, role: "teacher" });
     const adminCount = await User.countDocuments({ ...filter, role: "admin" });
     
-    // Note: To filter appointments properly by college, Appointment model would need collegeId. 
-    // For now we get the overall or we skip filtering appointments if model lacks it.
     const appointmentCount = await Appointment.countDocuments();
     const pendingAppointments = await Appointment.countDocuments({ status: "pending" });
 
@@ -303,13 +295,30 @@ export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await User.findByIdAndDelete(id);
-
+    const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const userEmail = user.email;
+    const userName = user.name;
+
+    await User.findByIdAndDelete(id);
+
     res.json({ message: "User deleted successfully" });
+
+    // ✅ EMAIL ADDED - Account Rejected (Point 9)
+    try {
+      if (userEmail) {
+        sendEmail({
+          email: userEmail,
+          subject: "MentorHub Account Status Update",
+          message: accountRejectedEmail(userName, "Your account has been removed from the MentorHub platform by an institutional administrator.")
+        });
+      }
+    } catch (emailError) {
+      console.error("❌ Email error (non-blocking):", emailError.message);
+    }
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -325,7 +334,6 @@ export const getAllUsers = async (req, res) => {
     if (role) query.role = role;
     if (req.user.collegeId) query.collegeId = req.user.collegeId;
     
-    // Admin can only see users in their own department
     if (req.user.role === "admin" && req.user.department) {
       query.department = req.user.department;
     }
@@ -387,7 +395,6 @@ export const getApprovedStudents = async (req, res) => {
     const query = {};
     if (req.user.collegeId) query.collegeId = req.user.collegeId;
     
-    // Admin can only see students in their own department
     if (req.user.role === "admin" && req.user.department) {
       query.department = req.user.department;
     }
@@ -419,7 +426,6 @@ export const getApprovedTeachers = async (req, res) => {
     const query = {};
     if (req.user.collegeId) query.collegeId = req.user.collegeId;
 
-    // Admin can only see teachers in their own department
     if (req.user.role === "admin" && req.user.department) {
       query.department = req.user.department;
     }

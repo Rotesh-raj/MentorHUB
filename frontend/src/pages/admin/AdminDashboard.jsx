@@ -9,51 +9,52 @@ import {
   Upload, Bell, LogOut, TrendingUp, Clock, CheckCircle, ArrowRight
 } from "lucide-react";
 
+import Card from '../../components/ui/Card';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+
 /* ─── Skeleton loader ─── */
 const StatSkeleton = () => (
-  <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 animate-pulse">
+  <Card className="animate-pulse">
     <div className="flex items-center justify-between mb-4">
-      <div className="w-12 h-12 bg-gray-200 rounded-xl" />
-      <div className="w-16 h-4 bg-gray-200 rounded" />
+      <div className="w-12 h-12 bg-neutral-100 rounded-xl" />
+      <div className="w-16 h-4 bg-neutral-100 rounded" />
     </div>
-    <div className="w-16 h-8 bg-gray-200 rounded mb-1" />
-    <div className="w-24 h-3 bg-gray-100 rounded" />
-  </div>
+    <div className="w-16 h-8 bg-neutral-100 rounded mb-1" />
+    <div className="w-24 h-3 bg-neutral-50 rounded" />
+  </Card>
 );
 
 /* ─── Stat Card ─── */
 const StatCard = ({ label, value, icon: Icon, color, bg, trend }) => (
-  <div className={`bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group`}>
+  <Card className="group hover:-translate-y-1 transition-all duration-300">
     <div className="flex items-center justify-between mb-4">
-      <div className={`w-12 h-12 ${bg} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
+      <div className={`w-12 h-12 ${bg} rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
         <Icon size={22} className={color} />
       </div>
-      {trend !== undefined && (
-        <div className="flex items-center gap-1 text-emerald-500 text-xs font-medium bg-emerald-50 px-2 py-1 rounded-full">
-          <TrendingUp size={12} />
-          <span>Active</span>
-        </div>
+      {trend && (
+        <Badge variant="success" className="animate-pulse">Active</Badge>
       )}
     </div>
-    <p className="text-3xl font-bold text-gray-800 mb-1">{value ?? '—'}</p>
-    <p className="text-sm text-gray-500">{label}</p>
-  </div>
+    <p className="text-3xl font-black text-neutral-900 mb-1">{value ?? '—'}</p>
+    <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">{label}</p>
+  </Card>
 );
 
 /* ─── Quick Action Card ─── */
 const ActionCard = ({ to, icon: Icon, label, desc, color, bg }) => (
-  <Link to={to} className="group">
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 h-full">
-      <div className={`w-12 h-12 ${bg} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200`}>
+  <Link to={to} className="group h-full">
+    <Card className="h-full hover:-translate-y-1 transition-all duration-300 border-transparent hover:border-primary-100">
+      <div className={`w-12 h-12 ${bg} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
         <Icon size={22} className={color} />
       </div>
-      <h3 className="text-gray-800 font-semibold text-sm mb-1">{label}</h3>
-      <p className="text-gray-400 text-xs leading-relaxed">{desc}</p>
-      <div className={`mt-4 flex items-center gap-1 text-xs font-medium ${color} opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
-        <span>Open</span>
+      <h3 className="text-neutral-900 font-black text-sm mb-1">{label}</h3>
+      <p className="text-neutral-400 text-xs leading-relaxed font-medium">{desc}</p>
+      <div className={`mt-4 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest ${color} opacity-0 group-hover:opacity-100 transition-all duration-300`}>
+        <span>Launch</span>
         <ArrowRight size={12} />
       </div>
-    </div>
+    </Card>
   </Link>
 );
 

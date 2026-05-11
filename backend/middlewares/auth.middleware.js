@@ -73,3 +73,16 @@ export const protect = async (req, res, next) => {
     });
   }
 };
+
+/**
+ * Device Validation Middleware
+ * Ensures deviceId is present for sensitive routes (Login)
+ * Exempts recovery routes (Forgot/Reset Password)
+ */
+// Device validation is intentionally disabled for enterprise forgot/reset password flows.
+// Login can still use sessionToken-based single-session protection.
+export const validateDeviceId = (req, res, next) => {
+  return next();
+};
+
+

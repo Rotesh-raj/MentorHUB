@@ -31,14 +31,14 @@ const Sidebar = () => {
       <Link
         to={item.path}
         onClick={() => setIsOpen(false)}
-        className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+        className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
           active
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+            ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30'
             : 'text-slate-400 hover:bg-slate-800 hover:text-white'
         }`}
       >
         <Icon size={18} className={active ? 'text-white' : 'text-slate-500 group-hover:text-white'} />
-        <span>{item.label}</span>
+        <span className="uppercase tracking-widest text-[11px]">{item.label}</span>
         {active && <ChevronRight size={14} className="ml-auto opacity-70" />}
       </Link>
     );
@@ -49,12 +49,12 @@ const Sidebar = () => {
       {/* Brand */}
       <div className="px-6 py-6 border-b border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <span className="text-white font-bold text-sm">SC</span>
+          <div className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/20">
+            <span className="text-white font-black text-sm">MH</span>
           </div>
           <div>
-            <p className="text-white font-bold text-sm leading-tight">Smart Campus</p>
-            <p className="text-slate-500 text-xs">Admin Portal</p>
+            <p className="text-white font-black text-sm leading-tight uppercase tracking-widest">MentorHub</p>
+            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Admin Portal</p>
           </div>
         </div>
       </div>
@@ -62,12 +62,12 @@ const Sidebar = () => {
       {/* Admin Info */}
       <div className="px-4 py-4 border-b border-slate-800">
         <div className="flex items-center gap-3 px-2">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-neutral-800 border border-slate-700 flex items-center justify-center text-primary-500 font-black text-sm flex-shrink-0">
             {user?.name?.charAt(0)?.toUpperCase() || 'A'}
           </div>
           <div className="min-w-0">
-            <p className="text-white text-sm font-medium truncate">{user?.name || 'Admin'}</p>
-            <p className="text-slate-500 text-xs truncate">{user?.email}</p>
+            <p className="text-white text-xs font-black truncate uppercase tracking-widest">{user?.name || 'Admin'}</p>
+            <p className="text-slate-500 text-[10px] truncate font-medium">{user?.email}</p>
           </div>
         </div>
       </div>

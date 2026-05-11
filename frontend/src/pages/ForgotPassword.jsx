@@ -1,111 +1,120 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
-import { Mail, ArrowLeft, Loader2, CheckCircle2, ShieldCheck, Sparkles } from "lucide-react";
+import { Mail, ArrowLeft, Loader2, CheckCircle2, ShieldCheck, Sparkles, UserCircle } from "lucide-react";
 import { useNotification } from "../context/NotificationContext";
 import { motion, AnimatePresence } from "framer-motion";
 
+/**
+ * Enterprise-Grade Forgot Password Page
+ * Supports Student, Teacher, and Admin roles via a unified selector.
+ */
 export default function ForgotPassword() {
+  const [searchParams] = useSearchParams();
+  const [role, setRole] = useState(searchParams.get("role") || "student");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [devLink, setDevLink] = useState("");
   const { success, error } = useNotification();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!email) return error("Please enter your email address.");
-    
-    setLoading(true);
-    try {
-      const res = await api.post("/auth/forgot-password", {
-        email: email.toLowerCase().trim(),
-      });
-      
-      if (res.data.devResetURL) {
-        setDevLink(res.data.devResetURL);
-      }
-      
-      setSubmitted(true);
-      success(res.data.message || "Reset link sent! 📧");
-    } catch (err) {
-      console.error(err);
-      error(err.response?.data?.message || "Failed to send reset link. Try again.");
-    } finally {
-      setLoading(false);
+  // Sync role with URL param if it changes
+  useEffect(() => {
+    const urlRole = searchParams.get("role");
+    if (urlRole && ["student", "teacher", "admin"].includes(urlRole)) {
+      setRole(urlRole);
     }
-  };
+  }, [searchParams]);
+
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!email) {
+    return error("Please enter your email address.");
+  }
+
+  setLoading(true);
+
+  try {
+
+    const res = await api.post(`/auth/${role}/forgot-password`, {
+      email: email.toLowerCase().trim(),
+    });
+
+
+    setSubmitted(true);
+
+    success(res.data.message || "Reset link sent successfully! 📧");
+
+  } catch (err) {
+
+    console.error("Forgot Password Error:", err);
+
+    error(
+      err.response?.data?.message ||
+      "Something went wrong. Please try again."
+    );
+
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const roles = [
+    { id: "student", label: "Student", icon: "👨‍🎓" },
+    { id: "teacher", label: "Teacher", icon: "👨‍🏫" },
+    { id: "admin", label: "Admin", icon: "🛡️" }
+  ];
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-white overflow-hidden">
-      {/* Left Side: Branding & Illustration */}
-      <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-800 relative items-center justify-center p-12 overflow-hidden">
-        {/* Animated Shapes */}
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-24 -left-24 w-96 h-96 bg-white/10 rounded-full blur-3xl"
-        />
-        <motion.div 
-          animate={{ rotate: -360 }}
-          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          className="absolute -bottom-24 -right-24 w-80 h-80 bg-indigo-400/20 rounded-full blur-3xl"
-        />
+      {/* Left Side: Dynamic Branding */}
+      <div className="hidden md:flex md:w-1/2 bg-slate-950 relative items-center justify-center p-12 overflow-hidden">
+        {/* Animated Background Gradients */}
+        <div className="absolute top-0 right-0 w-full h-full opacity-20 pointer-events-none">
+            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600 rounded-full blur-[120px] animate-pulse"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-600 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+        </div>
 
         <div className="relative z-10 text-white max-w-lg">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
           >
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                <ShieldCheck className="text-blue-600 w-8 h-8" />
+            <div className="flex items-center gap-3 mb-12">
+              <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                <ShieldCheck className="text-white w-6 h-6" />
               </div>
-              <h1 className="text-2xl font-bold tracking-tight">Smart Campus Connect</h1>
+              <h1 className="text-xl font-bold tracking-tight text-slate-200">MentorHub</h1>
             </div>
             
             <h2 className="text-5xl font-extrabold leading-tight mb-6">
-              Reset Your Password <br />
-              <span className="text-blue-200">Securely.</span> 🔐
+              Account <br />
+              <span className="text-indigo-500">Recovery.</span> 🔐
             </h2>
             
-            <p className="text-xl text-blue-100 leading-relaxed mb-8">
-              Don't worry, it happens to the best of us. Let's get you back into your account in just a few steps.
+            <p className="text-lg text-slate-400 leading-relaxed mb-10">
+              Recover access to your {role} dashboard securely. We'll send a high-security validation link to your registered email.
             </p>
 
-            <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-4">
               {[
-                "Secure Token Validation",
-                "10-Minute Expiry Window",
-                "Instant Email Notification"
-              ].map((feature, i) => (
-                <motion.div 
-                  key={i}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.8 + (i * 0.1) }}
-                  className="flex items-center gap-3 text-blue-50/80"
-                >
-                  <div className="w-5 h-5 rounded-full bg-blue-400/30 flex items-center justify-center">
-                    <Sparkles size={12} className="text-blue-200" />
-                  </div>
-                  <span className="text-sm font-medium">{feature}</span>
-                </motion.div>
+                "Encrypted One-Time Tokens",
+                "10-Minute Security Window",
+                "Automatic Account Locking",
+                "Device Binding Protection"
+              ].map((text, i) => (
+                <div key={i} className="flex items-center gap-3 text-slate-400">
+                   <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                   <span className="text-sm font-medium">{text}</span>
+                </div>
               ))}
             </div>
           </motion.div>
         </div>
       </div>
 
-      {/* Right Side: Form */}
-      <div className="flex-1 flex items-center justify-center p-6 md:p-12 bg-slate-50 relative">
-        {/* Mobile Logo */}
-        <div className="absolute top-8 left-8 md:hidden flex items-center gap-2">
-           <ShieldCheck className="text-blue-600 w-6 h-6" />
-           <span className="font-bold text-slate-800">Smart Campus</span>
-        </div>
-
+      {/* Right Side: High-UX Form */}
+      <div className="flex-1 flex items-center justify-center p-6 md:p-12 bg-slate-50">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -118,25 +127,43 @@ export default function ForgotPassword() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="bg-white/80 backdrop-blur-xl border border-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 p-10"
+                className="bg-white border border-slate-200 rounded-[2rem] shadow-xl shadow-slate-200/50 p-8 md:p-10"
               >
                 <div className="mb-8">
-                  <h3 className="text-3xl font-bold text-slate-900 mb-2">Forgot Password?</h3>
-                  <p className="text-slate-500">Enter your email and we'll send you a link to reset your password.</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-2">Forgot Password?</h3>
+                  <p className="text-slate-500 text-sm">Select your role and enter your email address.</p>
+                </div>
+
+                {/* Role Selector */}
+                <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 rounded-2xl mb-8">
+                  {roles.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => setRole(r.id)}
+                      className={`py-2.5 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-1 ${
+                        role === r.id 
+                        ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200" 
+                        : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <span className="text-base">{r.icon}</span>
+                      {r.label}
+                    </button>
+                  ))}
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700 ml-1">Email Address</label>
                     <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-600 transition-colors">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-600 transition-colors">
                         <Mail size={18} />
                       </div>
                       <input
                         type="email"
                         required
-                        className="block w-full pl-11 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all"
-                        placeholder="yourname@college.edu"
+                        className="block w-full pl-11 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
+                        placeholder="e.g. name@university.edu"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                       />
@@ -146,22 +173,17 @@ export default function ForgotPassword() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl shadow-xl shadow-slate-900/20 hover:bg-black hover:-translate-y-0.5 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
+                    className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-black hover:-translate-y-0.5 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                   >
                     {loading ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        Processing...
+                        Verifying...
                       </>
                     ) : (
                       <>
-                        Send Reset Link
-                        <motion.div
-                          animate={{ x: [0, 5, 0] }}
-                          transition={{ repeat: Infinity, duration: 1.5 }}
-                        >
-                          <ArrowLeft className="rotate-180" size={18} />
-                        </motion.div>
+                        Send Recovery Link
+                        <ArrowLeft className="rotate-180" size={18} />
                       </>
                     )}
                   </button>
@@ -169,8 +191,8 @@ export default function ForgotPassword() {
 
                 <div className="mt-8 pt-8 border-t border-slate-100 text-center">
                   <Link
-                    to="/"
-                    className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-all font-medium text-sm"
+                    to={`/${role}/login`}
+                    className="inline-flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-all font-semibold text-sm"
                   >
                     <ArrowLeft size={16} />
                     Back to login
@@ -182,56 +204,30 @@ export default function ForgotPassword() {
                 key="success"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white/80 backdrop-blur-xl border border-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 p-10 text-center"
+                className="bg-white border border-slate-200 rounded-[2rem] shadow-xl shadow-slate-200/50 p-10 text-center"
               >
-                <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.2 }}
-                  >
-                    <CheckCircle2 className="text-green-500 w-12 h-12" />
-                  </motion.div>
+                <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle2 className="text-indigo-600 w-10 h-10" />
                 </div>
-                <h3 className="text-3xl font-bold text-slate-900 mb-3">Email Sent!</h3>
-                <p className="text-slate-500 mb-8 leading-relaxed">
-                  We've sent a password reset link to <br />
-                  <span className="font-semibold text-slate-700">{email}</span>. <br />
-                  The link will expire in 10 minutes.
+                <h3 className="text-2xl font-bold text-slate-900 mb-3">Reset Link Sent!</h3>
+                <p className="text-slate-500 mb-8 leading-relaxed text-sm">
+                  If an account exists for <span className="font-bold text-slate-800">{email}</span>, 
+                  you will receive a reset link shortly. <br />
+                  <span className="text-red-500 font-semibold italic mt-2 block underline decoration-red-200 underline-offset-4">This link expires in 10 minutes.</span>
                 </p>
-
-                {devLink && (
-                  <div className="mb-8 p-4 bg-amber-50 border border-amber-100 rounded-2xl text-left">
-                    <p className="text-[10px] uppercase font-bold text-amber-600 mb-2 tracking-widest flex items-center gap-1">
-                      <Sparkles size={12} /> Developer Testing Link
-                    </p>
-                    <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-                      Since the SMTP server is not yet configured, use this link to test the reset flow:
-                    </p>
-                    <a 
-                      href={devLink}
-                      className="block p-3 bg-white border border-amber-200 rounded-xl text-blue-600 text-xs font-mono break-all hover:bg-blue-50 transition-colors"
-                    >
-                      {devLink}
-                    </a>
-                    <p className="text-[10px] text-amber-500 mt-2 italic">
-                      * This section only appears in development mode.
-                    </p>
-                  </div>
-                )}
                 
                 <div className="space-y-4">
                   <button
                     onClick={() => setSubmitted(false)}
-                    className="w-full py-4 rounded-2xl bg-slate-50 text-slate-600 font-semibold hover:bg-slate-100 transition-colors"
+                    className="w-full py-4 rounded-2xl bg-slate-50 text-slate-600 font-bold hover:bg-slate-100 transition-colors"
                   >
-                    Didn't get it? Try again
+                    Didn't get the email?
                   </button>
                   <Link
                     to="/"
-                    className="block text-blue-600 font-bold hover:text-blue-700 transition-colors py-2"
+                    className="block text-indigo-600 font-bold hover:text-indigo-700 transition-colors"
                   >
-                    Back to login
+                    Return Home
                   </Link>
                 </div>
               </motion.div>

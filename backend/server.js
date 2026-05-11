@@ -226,3 +226,15 @@ httpServer.on("error", (err) => {
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
+/* ================= CRASH PROTECTION ================= */
+
+// ✅ Prevents server from crashing on unhandled promise rejections (like SMTP timeouts)
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ UNHANDLED REJECTION:", reason);
+});
+
+// ✅ Prevents server from crashing on unexpected exceptions
+process.on("uncaughtException", (error) => {
+  console.error("❌ UNCAUGHT EXCEPTION:", error);
+});

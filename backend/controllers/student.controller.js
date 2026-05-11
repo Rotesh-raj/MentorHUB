@@ -1,7 +1,10 @@
 import User from "../models/User.js";
 import Appointment from "../models/Appointment.js";
 import Availability from "../models/Availability.js";
-import { appointmentBookingNotification } from "../utils/emailTemplate.js";
+import { 
+  appointmentBookedStudentEmail, 
+  appointmentBookedTeacherEmail 
+} from "../utils/emailTemplate.js";
 import sendEmail from "../utils/sendEmail.js";
 
 /* ================= GET ALL TEACHERS ================= */
@@ -92,7 +95,7 @@ export const bookAppointment = async (req, res) => {
     if (slot.teacherId.toString() !== teacherId)
       return res.status(400).json({ message: "Invalid slot selected" });
 
-    // Check if slot is already full for this student
+    // Check if slot is already booked by this student
     if (slot.bookedStudents && slot.bookedStudents.includes(req.user.id))
       return res.status(400).json({ message: "You have already booked this slot" });
 
@@ -120,27 +123,31 @@ export const bookAppointment = async (req, res) => {
     const student = await User.findById(appointment.studentId);
     const teacher = await User.findById(appointment.teacherId);
 
-    // Send email to teacher (non-blocking)
-    if (teacher && teacher.email) {
-      await sendEmail({
-        email: teacher.email,
-        subject: "New Appointment Request - MentorHub",
-        message: appointmentBookingNotification({
-          teacherName: teacher.name,
-          studentName: student.name,
-          year: student.year,
-          section: student.section,
-          topic: appointment.topic,
-          date: slot.date,
-          time: slot.startTime
-        })
-      });
-    }
-
     res.status(201).json({
       message: "Appointment booked successfully",
       appointment
     });
+
+    // ✅ EMAIL ADDED - Appointment Booked (Point 5)
+    try {
+      if (student && teacher) {
+        // Send to Student
+        sendEmail({
+          email: student.email,
+          subject: "Appointment Request Submitted - MentorHub",
+          message: appointmentBookedStudentEmail(student.name, teacher.name, slot.date, slot.startTime)
+        });
+
+        // Send to Teacher
+        sendEmail({
+          email: teacher.email,
+          subject: "New Appointment Request - MentorHub",
+          message: appointmentBookedTeacherEmail(teacher.name, student.name, slot.date, slot.startTime)
+        });
+      }
+    } catch (emailError) {
+      console.error("❌ Email error (non-blocking):", emailError.message);
+    }
 
   } catch (error) {
     console.error("BOOK ERROR:", error);

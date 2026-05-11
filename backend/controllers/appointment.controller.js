@@ -2,7 +2,10 @@ import Appointment from "../models/Appointment.js";
 import Availability from "../models/Availability.js";
 import User from "../models/User.js";
 import sendEmail from "../utils/sendEmail.js";
-import { appointmentStatusEmail } from "../utils/emailTemplate.js";
+import { 
+  appointmentApprovedEmail, 
+  appointmentRejectedEmail 
+} from "../utils/emailTemplate.js";
 
 /* ================= GET ALL APPOINTMENTS (ADMIN) ================= */
 export const getAllAppointments = async (req, res) => {
@@ -66,31 +69,38 @@ export const updateStatus = async (req, res) => {
 
     await appointment.save();
 
-    // 🔥 SEND EMAIL SAFELY
-    if (status === "approved" || status === "rejected") {
-      const studentEmail = appointment.studentId.email;
-
-      if (studentEmail) {
-        await sendEmail({
-          email: studentEmail,
-          subject: `${status === 'approved' ? 'Appointment Approved' : 'Appointment Rejected'} - MentorHub`,
-          message: appointmentStatusEmail({
-            studentName: appointment.studentId.name,
-            teacherName: appointment.teacherId.name,
-            topic: appointment.topic,
-            date: appointment.slotId.date,
-            time: appointment.slotId.startTime,
-            status: status === "approved" ? "Approved" : "Rejected",
-            reason: status === "rejected" ? appointment.reason : null
-          })
-        });
-      }
-    }
-
     res.json({
       message: `Appointment ${status} successfully`,
       appointment
     });
+
+    // ✅ EMAIL ADDED - Appointment Status Update (Point 6 & 7)
+    try {
+      if (status === "approved") {
+        sendEmail({
+          email: appointment.studentId.email,
+          subject: "Your Appointment Has Been Approved! 🎉",
+          message: appointmentApprovedEmail(
+            appointment.studentId.name,
+            appointment.teacherId.name,
+            appointment.slotId.date,
+            appointment.slotId.startTime
+          )
+        });
+      } else if (status === "rejected") {
+        sendEmail({
+          email: appointment.studentId.email,
+          subject: "Appointment Update - MentorHub",
+          message: appointmentRejectedEmail(
+            appointment.studentId.name,
+            appointment.teacherId.name,
+            appointment.reason
+          )
+        });
+      }
+    } catch (emailError) {
+      console.error("❌ Email error (non-blocking):", emailError.message);
+    }
 
   } catch (error) {
     console.error("UPDATE STATUS ERROR:", error);

@@ -1,5 +1,28 @@
+# Dependencies
+node_modules
+
+# Environment files
 .env
-node_modules/
-uploads/
+.env.local
+.env.production
+
+# Logs
+logs
 *.log
 
+# Build files
+dist
+build
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Uploads
+uploads/
+
+# Vite
+.vite
+
+backend/.env
+frontend/.env

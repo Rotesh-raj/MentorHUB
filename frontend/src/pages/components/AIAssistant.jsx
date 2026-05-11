@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAI } from "../../context/AIContext";
 import { useAuth } from "../../context/AuthContext";
 import { sendChatMessage, sendPublicChatMessage, getMultiAgentInsights } from "../../api/ai";
@@ -162,13 +163,13 @@ export default function AIAssistant() {
   const inputRef = useRef(null);
 
   /* ================= AUTO SCROLL ================= */
-
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typing]);
+    if (chatOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, typing, chatOpen]);
 
   /* ================= WELCOME MESSAGE ================= */
-
   useEffect(() => {
     if (chatOpen && messages.length === 0) {
       const welcomeText = isAuthenticated
@@ -180,15 +181,13 @@ export default function AIAssistant() {
   }, [chatOpen, messages.length, isAuthenticated, user]);
 
   /* ================= FOCUS INPUT ================= */
-
   useEffect(() => {
     if (chatOpen && activeTab === "chat") {
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [chatOpen, activeTab]);
 
   /* ================= SEND MESSAGE ================= */
-
   const sendMessage = async () => {
     if (!input.trim()) return;
 
@@ -212,12 +211,7 @@ export default function AIAssistant() {
       }
 
       setTyping(false);
-
-      const aiMessage = {
-        sender: "ai",
-        text: res.data.reply
-      };
-
+      const aiMessage = { sender: "ai", text: res.data.reply };
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       setTyping(false);
@@ -239,33 +233,26 @@ export default function AIAssistant() {
   };
 
   /* ================= LOAD INSIGHTS ================= */
-
   const loadInsights = async () => {
     if (!isAuthenticated) {
       setLocalError("Please log in to see AI insights.");
       return;
     }
-
     try {
       setLocalLoading(true);
       setLocalError(null);
-
       const res = await getMultiAgentInsights();
       setLocalInsights(res.data);
     } catch (err) {
-      console.error("Load Insights Error:", err);
       setLocalError("Failed to load insights.");
     } finally {
       setLocalLoading(false);
     }
   };
 
-  /* ================= TAB SWITCH ================= */
-
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === "insights" && localInsights.analysis.length === 0 && !localLoading) {
-      // Use global insights if available, otherwise fetch
       if (globalInsights.analysis.length > 0) {
         setLocalInsights(globalInsights);
       } else {
@@ -274,105 +261,122 @@ export default function AIAssistant() {
     }
   };
 
-  if (!chatOpen) return null;
-
   return (
-    <div className="fixed bottom-24 right-6 w-96 max-w-[calc(100vw-3rem)] bg-white shadow-2xl rounded-2xl flex flex-col z-50 overflow-hidden border border-gray-200"
-      style={{ height: "550px", maxHeight: "calc(100vh - 8rem)" }}
-    >
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4">
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center gap-2">
-            <div className="bg-white/20 p-1.5 rounded-lg">
-              <Sparkles size={18} />
-            </div>
-            <div>
-              <h2 className="font-semibold text-sm">MentorHub AI Assistant</h2>
-              <p className="text-xs text-indigo-100 opacity-80">
-                {isAuthenticated ? "Personalized with your data" : "General help"}
-              </p>
-            </div>
-          </div>
-          <button onClick={closeChat} className="hover:bg-white/20 p-1 rounded transition">
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 bg-indigo-500/30 p-1 rounded-lg">
-          <TabButton
-            active={activeTab === "chat"}
-            onClick={() => handleTabChange("chat")}
-            icon={MessageSquare}
-            label="Chat"
+    <AnimatePresence>
+      {chatOpen && (
+        <>
+          {/* Overlay for mobile */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeChat}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[59] md:hidden"
           />
-          {isAuthenticated && (
-            <TabButton
-              active={activeTab === "insights"}
-              onClick={() => handleTabChange("insights")}
-              icon={Brain}
-              label="Insights"
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        {activeTab === "chat" ? (
-          <>
-            {/* Messages */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-4 h-[calc(100%-64px)]">
-              {messages.map((msg, index) => (
-                <MessageBubble key={index} message={msg} />
-              ))}
-
-              {typing && (
-                <div className="flex gap-2">
-                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-                    <Bot size={14} className="text-indigo-600" />
+          
+          <motion.div
+            initial={{ opacity: 0, y: 100, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 100, scale: 0.9 }}
+            className="fixed bottom-0 right-0 md:bottom-24 md:right-6 w-full md:w-96 md:max-w-[calc(100vw-3rem)] h-[100dvh] md:h-[550px] md:max-h-[calc(100vh-8rem)] bg-white shadow-2xl rounded-t-3xl md:rounded-2xl flex flex-col z-[60] overflow-hidden border border-gray-200"
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 pt-6 md:pt-4">
+              {/* Mobile Handle */}
+              <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-4 md:hidden" />
+              
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="bg-white/20 p-1.5 rounded-lg">
+                    <Sparkles size={18} />
                   </div>
-                  <div className="bg-gray-100 px-4 py-3 rounded-2xl rounded-bl-md flex items-center gap-1 w-fit">
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                  <div>
+                    <h2 className="font-bold text-sm">MentorHub AI</h2>
+                    <p className="text-[10px] text-indigo-100 opacity-80 uppercase tracking-widest font-bold">
+                      {isAuthenticated ? "Pro Analytics" : "Assistant"}
+                    </p>
                   </div>
                 </div>
+                <button onClick={closeChat} className="hover:bg-white/20 p-2 rounded-xl transition">
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex gap-1 bg-indigo-500/30 p-1 rounded-xl">
+                <TabButton
+                  active={activeTab === "chat"}
+                  onClick={() => handleTabChange("chat")}
+                  icon={MessageSquare}
+                  label="Chat"
+                />
+                {isAuthenticated && (
+                  <TabButton
+                    active={activeTab === "insights"}
+                    onClick={() => handleTabChange("insights")}
+                    icon={Brain}
+                    label="Insights"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+              {activeTab === "chat" ? (
+                <>
+                  <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                    {messages.map((msg, index) => (
+                      <MessageBubble key={index} message={msg} />
+                    ))}
+                    {typing && (
+                      <div className="flex gap-2">
+                        <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                          <Bot size={14} className="text-indigo-600" />
+                        </div>
+                        <div className="bg-white px-4 py-3 rounded-2xl rounded-bl-md shadow-sm flex items-center gap-1 w-fit">
+                          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" />
+                        </div>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </div>
+
+                  <div className="p-4 bg-white border-t border-gray-100 flex gap-2 pb-8 md:pb-4">
+                    <input
+                      ref={inputRef}
+                      className="flex-1 px-4 py-3 text-sm border-none rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-100"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Ask me anything..."
+                    />
+                    <button
+                      onClick={sendMessage}
+                      disabled={!input.trim() || typing}
+                      className="bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg shadow-indigo-200"
+                    >
+                      <Send size={18} />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 overflow-y-auto">
+                  <InsightsTab
+                    insights={localInsights.analysis.length > 0 ? localInsights : globalInsights}
+                    loading={localLoading || (!localInsights.analysis.length && !globalInsights.analysis.length)}
+                    error={localError}
+                    onRefresh={loadInsights}
+                  />
+                </div>
               )}
-
-              <div ref={messagesEndRef} />
             </div>
-
-            {/* Input */}
-            <div className="border-t p-3 flex gap-2">
-              <input
-                ref={inputRef}
-                className="flex-1 px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask about your campus data..."
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!input.trim() || typing}
-                className="bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                <Send size={16} />
-              </button>
-            </div>
-          </>
-        ) : (
-          <InsightsTab
-            insights={localInsights.analysis.length > 0 ? localInsights : globalInsights}
-            loading={localLoading || (!localInsights.analysis.length && !globalInsights.analysis.length)}
-            error={localError}
-            onRefresh={loadInsights}
-          />
-        )}
-      </div>
-    </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
 

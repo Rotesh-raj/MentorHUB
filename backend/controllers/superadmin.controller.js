@@ -3,7 +3,10 @@ import CSVUpload from "../models/CSVUpload.js";
 import ApprovedStudent from "../models/ApprovedStudent.js";
 import ApprovedTeacher from "../models/ApprovedTeacher.js";
 import sendEmail from "../utils/sendEmail.js";
-import { adminApprovalConfirmationTemplate } from "../utils/emailTemplate.js";
+import { 
+  accountApprovedEmail, 
+  accountRejectedEmail 
+} from "../utils/emailTemplate.js";
 
 /* ================= GET ALL ADMINS ================= */
 export const getAllAdmins = async (req, res) => {
@@ -85,39 +88,29 @@ export const approveAdmin = async (req, res) => {
       });
     }
 
-    const superAdmin = await User.findById(req.user.id);
-
     admin.isApproved = true;
     admin.approvedBy = req.user.id;
     admin.approvedAt = new Date();
 
     await admin.save();
 
-    // Send email
+    res.json({
+      success: true,
+      message: "Admin approved successfully"
+    });
+
+    // ✅ EMAIL ADDED - Account Approved (Point 8)
     try {
-      await sendEmail({
+      const loginUrl = `${process.env.FRONTEND_URL}/admin/login`;
+      sendEmail({
         email: admin.email,
-        subject: "🎉 Your Admin Account Has Been Approved",
-        message: adminApprovalConfirmationTemplate({
-          name: admin.name
-        })
+        subject: "🎉 Your MentorHub Admin Account Has Been Approved",
+        message: accountApprovedEmail(admin.name, "Admin", loginUrl)
       });
-      console.log("✅ Approval email sent");
     } catch (emailError) {
       console.warn("⚠ Email failed:", emailError.message);
     }
 
-    res.json({
-      success: true,
-      message: "Admin approved successfully",
-      data: {
-        id: admin._id,
-        name: admin.name,
-        email: admin.email,
-        isApproved: admin.isApproved,
-        approvedAt: admin.approvedAt
-      }
-    });
   } catch (error) {
     res.status(500).json({
       message: "Server error",
@@ -129,13 +122,30 @@ export const approveAdmin = async (req, res) => {
 /* ================= DELETE ADMIN ================= */
 export const deleteAdmin = async (req, res) => {
   try {
-    const admin = await User.findByIdAndDelete(req.params.id);
+    const admin = await User.findById(req.params.id);
 
     if (!admin || admin.role !== "admin") {
       return res.status(404).json({ message: "Admin not found" });
     }
 
+    const adminEmail = admin.email;
+    const adminName = admin.name;
+
+    await User.findByIdAndDelete(req.params.id);
+
     res.json({ message: "Admin deleted successfully" });
+
+    // ✅ EMAIL ADDED - Account Rejected/Deleted (Point 9)
+    try {
+      sendEmail({
+        email: adminEmail,
+        subject: "MentorHub Registration Update",
+        message: accountRejectedEmail(adminName, "Your admin registration request was not approved or has been removed.")
+      });
+    } catch (emailError) {
+      console.warn("⚠ Email failed:", emailError.message);
+    }
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -147,7 +157,6 @@ export const deleteAdmin = async (req, res) => {
 export const getPendingCSVUploads = async (req, res) => {
   try {
     const filter = { status: "pending" };
-    // If the superadmin is tied to a college, filter by it
     if (req.user.collegeId) {
       filter.collegeId = req.user.collegeId;
     }

@@ -4,58 +4,40 @@ import ApprovedStudent from "../models/ApprovedStudent.js";
 import ApprovedTeacher from "../models/ApprovedTeacher.js";
 import { generateToken } from "../utils/jwt.js";
 import sendEmail from "../utils/sendEmail.js";
-import { adminRegistrationNotification, forgotPasswordEmail, adminApprovalEmail, adminRejectionEmail } from "../utils/emailTemplate.js";
+import { 
+  welcomeEmail, 
+  forgotPasswordEmail, 
+  passwordResetSuccessEmail, 
+  accountApprovedEmail, 
+  accountRejectedEmail,
+  adminRegistrationNotification 
+} from "../utils/emailTemplate.js";
 import College from "../models/College.js";
+
+/* ================= REGISTRATION ================= */
 
 export const studentRegister = async (req, res) => {
   try {
     let { usn, name, email, password, collegeId } = req.body;
 
-    if (!collegeId) {
-      return res.status(400).json({ message: "College selection is required." });
-    }
+    if (!collegeId) return res.status(400).json({ message: "College selection is required." });
 
     usn = usn.toUpperCase().trim();
     email = email.toLowerCase().trim();
     
-    // Find matching USN in the selected college
     const student = await ApprovedStudent.findOne({ usn, collegeId });
+    if (!student) return res.status(400).json({ message: "❌ Invalid USN for the selected college." });
+    if (!student.approved) return res.status(403).json({ message: "⏳ Your details await SuperAdmin approval." });
 
-    // ❌ USN NOT FOUND IN SELECTED COLLEGE
-    if (!student)
-      return res.status(400).json({
-        message: "❌ Invalid USN for the selected college."
-      });
-
-    // ❌ CSV UPLOAD NOT APPROVED YET
-    if (!student.approved) {
-      return res.status(403).json({
-        message: "⏳ Your details have been uploaded but are awaiting SuperAdmin approval."
-      });
-    }
-
-
-    // 2. Check already registered (using USN)
     const existingUser = await User.findOne({ referenceId: usn });
+    if (existingUser) return res.status(400).json({ message: "⚠ This USN is already registered." });
 
-    if (existingUser) {
-      return res.status(400).json({
-        message: "⚠ This USN is already registered. Please login."
-      });
-    }
-
-    // ❌ EMAIL ALREADY USED
     const existingEmailUser = await User.findOne({ email });
-    if (existingEmailUser) {
-      return res.status(400).json({
-        message: "⚠ Email already exists. Please use a different email."
-      });
-    }
+    if (existingEmailUser) return res.status(400).json({ message: "⚠ Email already exists." });
 
-    // ✅ CREATE ACCOUNT USING APPROVED DATA
     const user = await User.create({
-      name: student.name,      // use approved name
-      email: email,      // from frontend email
+      name: student.name,
+      email: email,
       password,
       role: "student",
       referenceId: usn,
@@ -65,12 +47,6 @@ export const studentRegister = async (req, res) => {
       section: student.section
     });
 
-    console.log("USER SAVED TO DB:", user._id);
-
-
-
-
-    // Mark as registered
     await ApprovedStudent.findByIdAndUpdate(student._id, { registered: true });
 
     const sessionToken = crypto.randomUUID();
@@ -80,339 +56,17 @@ export const studentRegister = async (req, res) => {
 
     const token = generateToken(user._id, user.role, user.collegeId, user.department, sessionToken);
 
-    res.status(201).json({
-      token,
-      user,
-      message: "✅ Registration successful. Welcome to Smart Campus!"
-    });
+    res.status(201).json({ token, user, message: "✅ Registration successful!" });
 
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-/* ================= FORGOT PASSWORD (INTERNAL HELPER) ================= */
-const handleForgotPassword = async (req, res, role) => {
-  try {
-    const { email, deviceFingerprint } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ message: "Please provide your registered email." });
-    }
-
-    if (!deviceFingerprint) {
-      return res.status(400).json({ message: "Security validation failed: Device ID missing." });
-    }
-
-    // Role-specific lookup
-    const user = await User.findOne({ 
-      email: email.toLowerCase().trim(),
-      role: role 
-    });
-
-    if (!user) {
-      // Security best practice: If we want to be super strict about role validation,
-      // we check if the email exists at all but belongs to another role.
-      const userAnyRole = await User.findOne({ email: email.toLowerCase().trim() });
-      if (userAnyRole) {
-        return res.status(403).json({
-          message: `Unauthorized: This email is registered as a ${userAnyRole.role}. Please use the correct portal.`
-        });
-      }
-      return res.status(404).json({
-        message: `${role.charAt(0).toUpperCase() + role.slice(1)} account not found.`
-      });
-    }
-
-    // Generate raw token and store hash
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
-
-    user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
-    user.resetPasswordFingerprint = deviceFingerprint; // Bind to device
-
-    await user.save({ validateBeforeSave: false });
-
-    const resetURL = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
-    const htmlMessage = forgotPasswordEmail(resetURL, user.name);
-
-    // Try sending email (but don't fail if it fails, as we return the link to frontend)
-    let emailSent = false;
-    try {
-      emailSent = await sendEmail({
-        email: user.email,
-        subject: "Reset Your MentorHub Password",
-        message: htmlMessage
-      });
-    } catch (e) {
-      console.error("Email sending failed:", e.message);
-    }
-
-    res.json({
-      success: true,
-      message: emailSent 
-        ? "Password reset link sent to your email and generated below." 
-        : "Email service busy. Use the secure link generated below to reset your password.",
-      resetURL, // TASK 2: Return link to frontend
-      expiresIn: "10 minutes"
-    });
-
-  } catch (error) {
-    console.error(`❌ ${role.toUpperCase()} FORGOT PASSWORD ERROR:`, error);
-    res.status(500).json({ 
-      success: false,
-      message: "Internal server error during password recovery." 
-    });
-  }
-};
-
-/* ================= STUDENT FORGOT PASSWORD ================= */
-export const studentForgotPassword = async (req, res) => {
-  await handleForgotPassword(req, res, "student");
-};
-
-/* ================= TEACHER FORGOT PASSWORD ================= */
-export const teacherForgotPassword = async (req, res) => {
-  await handleForgotPassword(req, res, "teacher");
-};
-
-/* ================= ADMIN FORGOT PASSWORD ================= */
-export const adminForgotPassword = async (req, res) => {
-  await handleForgotPassword(req, res, "admin");
-};
-
-/* ================= SUPERADMIN FORGOT PASSWORD ================= */
-export const superadminForgotPassword = async (req, res) => {
-  await handleForgotPassword(req, res, "superadmin");
-};
-
-/* ================= RESET PASSWORD ================= */
-// PUT /api/auth/reset-password/:token
-export const resetPassword = async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { password, confirmPassword, deviceFingerprint } = req.body;
-
-    // ✅ Validate inputs
-    if (!password) {
-      return res.status(400).json({ message: "New password is required." });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters." });
-    }
-
-    if (password !== confirmPassword) {
-      return res.status(400).json({ message: "Passwords do not match." });
-    }
-
-    if (!deviceFingerprint) {
-      return res.status(400).json({ message: "Security validation failed: Unauthorized device." });
-    }
-
-    // ✅ Hash the incoming raw token to compare against DB
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
-
-    // Find user with matching token that has NOT yet expired
-    const user = await User
-      .findOne({
-        resetPasswordToken: hashedToken,
-        resetPasswordExpire: { $gt: Date.now() }  // still valid
-      })
-      .select("+password +resetPasswordToken +resetPasswordExpire +resetPasswordFingerprint");
-
-    if (!user) {
-      return res.status(400).json({
-        message: "❌ Reset link is invalid or has expired. Please request a new one."
-      });
-    }
-
-    // ✅ DEVICE-BOUND SECURITY CHECK
-    if (user.resetPasswordFingerprint !== deviceFingerprint) {
-      return res.status(403).json({
-        message: "❌ Unauthorized device. Reset link must be used on the same device it was requested from."
-      });
-    }
-
-    // ✅ Update password — pre-save hook hashes it automatically
-    user.password = password;
-    user.resetPasswordToken = undefined;   // ✅ invalidate token
-    user.resetPasswordExpire = undefined;
-    user.resetPasswordFingerprint = undefined;
-
-    await user.save();
-
-    res.json({
-      success: true,
-      message: "✅ Password reset successful. Please login with your new password."
-    });
-
-  } catch (error) {
-    console.error("RESET PASSWORD ERROR:", error);
-    res.status(500).json({ message: "Internal server error during password reset." });
-  }
-};
-
-
-
-
-export const checkStudentApproval = async (req, res) => {
-  try {
-    const student = await ApprovedStudent.findOne({
-      usn: req.params.usn.toUpperCase()
-    });
-
-    if (!student) {
-      return res.status(404).json({
-        approved: false,
-        message: "USN not found"
-      });
-    }
-
-    res.json({ approved: true });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-export const checkTeacherApproval = async (req, res) => {
-  try {
-    const teacher = await ApprovedTeacher.findOne({
-      staffId: req.params.staffId.toUpperCase()
-    });
-
-    if (!teacher) {
-      return res.status(404).json({
-        approved: false,
-        message: "Staff ID not found"
-      });
-    }
-
-    res.json({ approved: true });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-/* ================= ADMIN REGISTER ================= */
-export const adminRegister = async (req, res) => {
-  try {
-    const { name, email, password, confirmPassword, college, department, role } = req.body;
-
-    console.log("REGISTER REQUEST:", req.body);
-
-    // ✅ Validate required fields
-    if (!name || !email || !password || !college || !role) {
-      return res.status(400).json({
-        message: "Please fill all required fields."
-      });
-    }
-
-    if (role === "admin" && !department) {
-      return res.status(400).json({
-        message: "Department is required for Admin role."
-      });
-    }
-
-    // ✅ Validate confirm password if provided
-    if (confirmPassword && password !== confirmPassword) {
-      return res.status(400).json({
-        message: "Passwords do not match"
-      });
-    }
-
-    // 🔥 AUTO GENERATE referenceId
-    const referenceId = `ADMIN_${Date.now()}`;
-
-    // Check if email already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
-    if (existingUser) {
-      return res.status(400).json({
-        message: "❌ Email already registered."
-      });
-    }
-
-    // Check if college exists, if not create it
-    let targetCollege = await College.findOne({ name: college });
-    if (!targetCollege) {
-      const baseCode = college.split(/[\s-]/).map(w => w[0]).join('').toUpperCase().replace(/[^A-Z]/g, '').substring(0, 4);
-      const uniqueCode = `${baseCode}${Math.floor(Math.random() * 10000)}`;
-      targetCollege = await College.create({ name: college, code: uniqueCode });
-    }
-
-    // ✅ SUPERADMIN DUPLICATE CHECK
-    if (role === "superadmin") {
-      const existingSuperAdmin = await User.findOne({ collegeId: targetCollege._id, role: "superadmin" });
-      if (existingSuperAdmin) {
-        return res.status(400).json({ message: "❌ A SuperAdmin already exists for this college." });
-      }
-    }
-
-    // ✅ ADMIN DUPLICATE CHECK
-    if (role === "admin") {
-      const existingAdmin = await User.findOne({ collegeId: targetCollege._id, department, role: "admin" });
-      if (existingAdmin) {
-        return res.status(400).json({ message: "❌ Admin already exists for this department in this college." });
-      }
-    }
-
-    // Create user. SuperAdmins are auto-approved, Admins need approval.
-    const isApproved = role === "superadmin" ? true : false;
-
-    const user = await User.create({
-      name,
-      email: email.toLowerCase().trim(),
-      password,
-      role,
-      referenceId,
-      collegeId: targetCollege._id, // ✅ Link admin to college in SaaS architecture
-      college, // also store string as requested
-      department,
-      isApproved
-    });
-
-    const sessionToken = crypto.randomUUID();
-    user.sessionToken = sessionToken;
-    user.lastLogin = new Date();
-    await user.save();
-
-    if (user) {
-      console.log("✅ USER PERMANENTLY SAVED TO MONGODB:", {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-        college: user.college
-      });
-    }
-
-    // Send email notification for admin registrations only
-    if (role === "admin") {
+    // ✅ EMAIL: Welcome
+    setImmediate(async () => {
       try {
-        const superAdmin = await User.findOne({ collegeId: targetCollege._id, role: "superadmin" });
-
-        if (superAdmin) {
-          await sendEmail({
-            email: superAdmin.email,
-            subject: "New Admin Registration Request - MentorHub",
-            message: adminRegistrationNotification({
-              name: name,
-              email: email,
-              department,
-              college
-            })
-          });
-        }
-      } catch (emailError) {
-        // Suppress email errors in production
-      }
-    }
-
-    res.status(201).json({
-      success: true,
-      message: "Admin registration submitted. Awaiting approval."
+        await sendEmail({
+          email: user.email,
+          subject: "Welcome to MentorHub! 🚀",
+          message: welcomeEmail(user.name, `${process.env.FRONTEND_URL}/student/login`)
+        });
+      } catch (e) {}
     });
 
   } catch (error) {
@@ -420,195 +74,20 @@ export const adminRegister = async (req, res) => {
   }
 };
 
-/* ================= LOGIN ================= */
-export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Please provide email and password"
-      });
-    }
-
-    // ✅ FIX: Add .select('+password') because password has select: false in User model
-    // Without this, user.password will be undefined, causing "Illegal arguments: string, undefined" error
-    const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+password');
-
-    if (!user) {
-      return res.status(401).json({
-        message: "Invalid credentials"
-      });
-    }
-
-    const isMatch = await user.comparePassword(password);
-
-    if (!isMatch) {
-      return res.status(401).json({
-        message: "Invalid credentials"
-      });
-    }
-
-    // ✅ Check if admin is approved
-    if (user.role === "admin" && user.isApproved === false) {
-      return res.status(403).json({
-        message: "Admin approval pending. Please wait for Super Admin approval."
-      });
-    }
-
-    const sessionToken = crypto.randomUUID();
-    user.sessionToken = sessionToken;
-    user.lastLogin = new Date();
-    await user.save();
-
-    const token = generateToken(user._id, user.role, user.collegeId, user.department, sessionToken);
-
-    // Remove password from response
-    user.password = undefined;
-
-    res.json({
-      token,
-      user,
-      message: "✅ Login successful!"
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-
-/* ================= SUPERADMIN APPROVAL ================= */
-
-export const getPendingAdmins = async (req, res) => {
-  try {
-    if (req.user.role !== "superadmin") {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
-    const admins = await User.find({
-      role: "admin",
-      isApproved: false
-    }).select("-password");
-
-    res.json({
-      success: true,
-      admins
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-export const approveAdmin = async (req, res) => {
-  try {
-    if (req.user.role !== "superadmin") {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
-    const admin = await User.findById(req.params.id);
-
-    if (!admin || admin.role !== "admin") {
-      return res.status(404).json({ message: "Admin not found" });
-    }
-
-    admin.isApproved = true;
-    admin.approvedAt = new Date();
-    admin.approvedBy = req.user._id;
-
-    await admin.save();
-
-    // ✅ SEND APPROVAL EMAIL
-    await sendEmail({
-      email: admin.email,
-      subject: "Your MentorHub Admin Account Has Been Approved",
-      message: adminApprovalEmail(admin.name)
-    });
-
-    res.json({
-      success: true,
-      message: "Admin approved successfully"
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-export const rejectAdmin = async (req, res) => {
-  try {
-    if (req.user.role !== "superadmin") {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
-    const admin = await User.findById(req.params.id);
-
-    if (!admin || admin.role !== "admin") {
-      return res.status(404).json({ message: "Admin not found" });
-    }
-
-    const adminEmail = admin.email;
-    const adminName = admin.name;
-
-    await admin.deleteOne();
-
-    // ✅ SEND REJECTION EMAIL
-    await sendEmail({
-      email: adminEmail,
-      subject: "MentorHub Admin Registration Update",
-      message: adminRejectionEmail(adminName)
-    });
-
-    res.json({
-      success: true,
-      message: "Admin rejected and removed"
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-/* ================= TEACHER REGISTER ================= */
 export const teacherRegister = async (req, res) => {
   try {
     let { staffId, password, collegeId } = req.body;
-
-    if (!collegeId) {
-      return res.status(400).json({ message: "College selection is required." });
-    }
-
+    if (!collegeId) return res.status(400).json({ message: "College selection is required." });
     staffId = staffId.toUpperCase().trim();
 
     const teacher = await ApprovedTeacher.findOne({ staffId, collegeId });
+    if (!teacher) return res.status(400).json({ message: "❌ Invalid Staff ID for the selected college." });
+    if (!teacher.approved) return res.status(403).json({ message: "⏳ Your details await SuperAdmin approval." });
+    if (teacher.registered) return res.status(400).json({ message: "⚠ This Staff ID is already registered." });
 
-    // ❌ STAFF ID NOT FOUND
-    if (!teacher)
-      return res.status(400).json({
-        message: "❌ Invalid Staff ID for the selected college."
-      });
-
-    // ❌ CSV UPLOAD NOT APPROVED YET
-    if (!teacher.approved) {
-      return res.status(403).json({
-        message: "⏳ Your details have been uploaded but are awaiting SuperAdmin approval."
-      });
-    }
-
-    // ❌ ALREADY REGISTERED
-    if (teacher.registered)
-      return res.status(400).json({
-        message: "⚠ This Staff ID is already registered. Please login instead."
-      });
-
-    // ❌ EMAIL ALREADY USED
     const existingUser = await User.findOne({ email: teacher.email });
-    if (existingUser)
-      return res.status(400).json({
-        message: "⚠ Account already exists. Please login."
-      });
+    if (existingUser) return res.status(400).json({ message: "⚠ Account already exists." });
 
-    // ✅ CREATE ACCOUNT USING APPROVED DATA
     const user = await User.create({
       name: teacher.name,
       email: teacher.email,
@@ -619,9 +98,6 @@ export const teacherRegister = async (req, res) => {
       department: teacher.department
     });
 
-    console.log("USER SAVED TO DB:", user._id);
-
-    // Mark as registered
     await ApprovedTeacher.findByIdAndUpdate(teacher._id, { registered: true });
 
     const sessionToken = crypto.randomUUID();
@@ -631,10 +107,17 @@ export const teacherRegister = async (req, res) => {
 
     const token = generateToken(user._id, user.role, user.collegeId, user.department, sessionToken);
 
-    res.status(201).json({
-      token,
-      user,
-      message: "✅ Registration successful. Welcome to Smart Campus!"
+    res.status(201).json({ token, user, message: "✅ Registration successful!" });
+
+    // ✅ EMAIL: Welcome
+    setImmediate(async () => {
+      try {
+        await sendEmail({
+          email: user.email,
+          subject: "Welcome to MentorHub! 🚀",
+          message: welcomeEmail(user.name, `${process.env.FRONTEND_URL}/teacher/login`)
+        });
+      } catch (e) {}
     });
 
   } catch (error) {
@@ -642,26 +125,225 @@ export const teacherRegister = async (req, res) => {
   }
 };
 
-
-/* ================= GET ME ================= */
-export const getMe = async (req, res) => {
+export const adminRegister = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const { name, email, password, confirmPassword, college, department, role } = req.body;
 
-    if (!user) {
-      return res.status(404).json({
-        message: "User not found"
+    if (!name || !email || !password || !college || !role) {
+      return res.status(400).json({ message: "Please fill all required fields." });
+    }
+
+    if (role === "admin" && !department) {
+      return res.status(400).json({ message: "Department is required for Admin role." });
+    }
+
+    const referenceId = `ADMIN_${Date.now()}`;
+
+    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existingUser) return res.status(400).json({ message: "❌ Email already registered." });
+
+    let targetCollege = await College.findOne({ name: college });
+    if (!targetCollege) {
+      const baseCode = college.split(/[\s-]/).map(w => w[0]).join('').toUpperCase().replace(/[^A-Z]/g, '').substring(0, 4);
+      const uniqueCode = `${baseCode}${Math.floor(Math.random() * 10000)}`;
+      targetCollege = await College.create({ name: college, code: uniqueCode });
+    }
+
+    if (role === "superadmin") {
+      const existingSuperAdmin = await User.findOne({ collegeId: targetCollege._id, role: "superadmin" });
+      if (existingSuperAdmin) return res.status(400).json({ message: "❌ SuperAdmin already exists for this college." });
+    }
+
+    if (role === "admin") {
+      const existingAdmin = await User.findOne({ collegeId: targetCollege._id, department, role: "admin" });
+      if (existingAdmin) return res.status(400).json({ message: "❌ Admin already exists for this department." });
+    }
+
+    const user = await User.create({
+      name,
+      email: email.toLowerCase().trim(),
+      password,
+      role,
+      referenceId,
+      collegeId: targetCollege._id,
+      college,
+      department,
+      isApproved: role === "superadmin"
+    });
+
+    const sessionToken = crypto.randomUUID();
+    user.sessionToken = sessionToken;
+    user.lastLogin = new Date();
+    await user.save();
+
+    if (role === "admin") {
+      setImmediate(async () => {
+        try {
+          const superAdmin = await User.findOne({ collegeId: targetCollege._id, role: "superadmin" });
+          if (superAdmin) {
+            await sendEmail({
+              email: superAdmin.email,
+              subject: "New Admin Registration Request",
+              message: adminRegistrationNotification({ name, email, department, college })
+            });
+          }
+        } catch (e) {}
       });
     }
 
-    res.json(user);
+    res.status(201).json({ success: true, message: "Registration submitted. Awaiting approval." });
 
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-/* ================= LOGOUT ================= */
+/* ================= HIGH-SECURITY FORGOT PASSWORD ================= */
+
+const handleForgotPassword = async (req, res, role) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
+    const user = await User.findOne({ email: email.toLowerCase().trim(), role });
+
+    // ✅ SECURITY: Generic response (Anti-enumeration)
+    res.status(200).json({ message: "If an account exists, a reset link has been sent to your email." });
+
+    if (!user) return;
+
+    // 1. Generate Raw Token
+    const rawToken = crypto.randomBytes(32).toString("hex");
+
+    // 2. Hash Token for Storage
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+    // 3. Store in DB with 10min Expiry
+    user.passwordResetToken = hashedToken;
+    user.passwordResetExpire = Date.now() + 10 * 60 * 1000; // 10 Minutes
+    await user.save({ validateBeforeSave: false });
+
+    // 4. Build URL
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${rawToken}&role=${role}`;
+
+    // 5. Send Email (Non-blocking)
+    setImmediate(async () => {
+      try {
+        const emailSent = await sendEmail({
+          email: user.email,
+          subject: "Reset Your MentorHub Password",
+          message: forgotPasswordEmail(user.name, resetUrl, 10)
+        });
+
+        if (!emailSent) {
+          // If email fails, clear the token so it can't be used
+          user.passwordResetToken = undefined;
+          user.passwordResetExpire = undefined;
+          await user.save({ validateBeforeSave: false });
+        }
+      } catch (err) {
+        console.error("❌ Forgot Password Email Error:", err.message);
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Forgot Password Controller Error:", error.message);
+    if (!res.headersSent) {
+       res.status(200).json({ message: "If an account exists, a reset link has been sent to your email." });
+    }
+  }
+};
+
+export const studentForgotPassword = (req, res) => handleForgotPassword(req, res, "student");
+export const teacherForgotPassword = (req, res) => handleForgotPassword(req, res, "teacher");
+export const adminForgotPassword = (req, res) => handleForgotPassword(req, res, "admin");
+export const superadminForgotPassword = (req, res) => handleForgotPassword(req, res, "superadmin");
+
+/* ================= HIGH-SECURITY RESET PASSWORD ================= */
+
+const handleResetPassword = async (req, res, role) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ message: "Token and new password are required" });
+
+    // 1. Hash incoming token to match DB
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // 2. Find User with valid token & expiry
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpire: { $gt: Date.now() },
+      role: role
+    }).select("+password");
+
+    if (!user) {
+      return res.status(400).json({ message: "Token is invalid or has expired. Please request a new one." });
+    }
+
+    // 3. Update Password (Middleware hashes it)
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpire = undefined;
+    
+    // Clear old security fields if present
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+
+    await user.save();
+
+    res.status(200).json({ success: true, message: "✅ Password reset successful. You can now login." });
+
+    // 4. Send Success Email
+    setImmediate(async () => {
+      try {
+        await sendEmail({
+          email: user.email,
+          subject: "Password Updated Successfully ✅",
+          message: passwordResetSuccessEmail(user.name)
+        });
+      } catch (err) {}
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: "Server error during password reset" });
+  }
+};
+
+export const studentResetPassword = (req, res) => handleResetPassword(req, res, "student");
+export const teacherResetPassword = (req, res) => handleResetPassword(req, res, "teacher");
+export const adminResetPassword = (req, res) => handleResetPassword(req, res, "admin");
+
+/* ================= COMMON AUTH ================= */
+
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: "Please provide email and password" });
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+password');
+    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+
+    if (user.role === "admin" && user.isApproved === false) {
+      return res.status(403).json({ message: "Admin approval pending." });
+    }
+
+    const sessionToken = crypto.randomUUID();
+    user.sessionToken = sessionToken;
+    user.lastLogin = new Date();
+    await user.save();
+
+    const token = generateToken(user._id, user.role, user.collegeId, user.department, sessionToken);
+    user.password = undefined;
+
+    res.json({ token, user, message: "✅ Login successful!" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const logoutUser = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -669,8 +351,102 @@ export const logoutUser = async (req, res) => {
       user.sessionToken = null;
       await user.save({ validateBeforeSave: false });
     }
-
     res.json({ success: true, message: "Logged out successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ================= ADMIN APPROVAL ================= */
+
+export const getPendingAdmins = async (req, res) => {
+  try {
+    if (req.user.role !== "superadmin") return res.status(403).json({ message: "Access denied" });
+    const admins = await User.find({ role: "admin", isApproved: false }).select("-password");
+    res.json({ success: true, admins });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const approveAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "superadmin") return res.status(403).json({ message: "Access denied" });
+    const admin = await User.findById(req.params.id);
+    if (!admin || admin.role !== "admin") return res.status(404).json({ message: "Admin not found" });
+
+    admin.isApproved = true;
+    admin.approvedAt = new Date();
+    admin.approvedBy = req.user._id;
+    await admin.save();
+
+    res.json({ success: true, message: "Admin approved successfully" });
+
+    setImmediate(async () => {
+      try {
+        await sendEmail({
+          email: admin.email,
+          subject: "Your Admin Account Approved",
+          message: accountApprovedEmail(admin.name, "Admin", `${process.env.FRONTEND_URL}/admin/login`)
+        });
+      } catch (e) {}
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const rejectAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "superadmin") return res.status(403).json({ message: "Access denied" });
+    const admin = await User.findById(req.params.id);
+    if (!admin || admin.role !== "admin") return res.status(404).json({ message: "Admin not found" });
+
+    const email = admin.email;
+    const name = admin.name;
+    await admin.deleteOne();
+
+    res.json({ success: true, message: "Admin rejected" });
+
+    setImmediate(async () => {
+      try {
+        await sendEmail({
+          email,
+          subject: "Admin Registration Update",
+          message: accountRejectedEmail(name, "Verification failed.")
+        });
+      } catch (e) {}
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ================= HELPERS ================= */
+
+export const checkStudentApproval = async (req, res) => {
+  try {
+    const student = await ApprovedStudent.findOne({ usn: req.params.usn.toUpperCase() });
+    res.json({ approved: !!student });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const checkTeacherApproval = async (req, res) => {
+  try {
+    const teacher = await ApprovedTeacher.findOne({ staffId: req.params.staffId.toUpperCase() });
+    res.json({ approved: !!teacher });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

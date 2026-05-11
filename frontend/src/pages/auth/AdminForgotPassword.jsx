@@ -4,7 +4,7 @@ import api from "../../api/axios";
 import { Mail, ArrowLeft, Loader2, CheckCircle2, ShieldCheck, Sparkles, LayoutDashboard } from "lucide-react";
 import { useNotification } from "../../context/NotificationContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { getDeviceFingerprint } from "../../utils/security";
+
 import { Copy, ExternalLink } from "lucide-react";
 
 export default function AdminForgotPassword() {
@@ -20,11 +20,10 @@ export default function AdminForgotPassword() {
     
     setLoading(true);
     try {
-      const fingerprint = getDeviceFingerprint();
       const res = await api.post("/auth/admin/forgot-password", {
         email: email.toLowerCase().trim(),
-        deviceFingerprint: fingerprint,
       });
+
       
       if (res.data.resetURL) {
         setResetLink(res.data.resetURL);
@@ -171,7 +170,7 @@ export default function AdminForgotPassword() {
                       </button>
                     </div>
                     <p className="text-[10px] text-slate-500 mt-2 font-medium italic">
-                      ⚠️ Note: This link only works on this browser/device.
+                      
                     </p>
                     <a 
                       href={resetLink}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ChevronLeft, Send, CheckCheck } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
@@ -8,7 +9,7 @@ import { useNotification } from '../../context/NotificationContext';
 const Chat = () => {
   const { id: appointmentId } = useParams();
   const { user } = useAuth();
-  const { socket, joinChatRoom, emitTyping, emitStopTyping, onlineUsers } = useSocket();
+  const { socket, joinChatRoom, emitTyping, emitStopTyping, onlineUsers, checkStatus } = useSocket();
   const { error } = useNotification();
   const navigate = useNavigate();
   
@@ -153,105 +154,113 @@ const Chat = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f0f2f5] flex flex-col h-screen">
+    <div className="flex flex-col h-[100dvh] bg-slate-50 overflow-hidden">
       {/* Premium Chat Header */}
-      <nav className="bg-white border-b px-6 py-3 flex items-center justify-between shadow-sm z-10">
-        <div className="flex items-center gap-4">
-          <Link to="/student/appointments" className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+      <nav className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm z-20 shrink-0">
+        <div className="flex items-center gap-3">
+          <Link 
+            to="/student/appointments" 
+            className="p-2 hover:bg-slate-100 rounded-xl transition-all text-slate-500"
+          >
+            <ChevronLeft size={20} />
           </Link>
+          
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                {partner?.name?.charAt(0)}
+              <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-blue-100">
+                {partner?.profilePic ? (
+                  <img src={partner.profilePic} alt={partner.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-blue-600 font-bold">
+                    {partner?.name?.charAt(0)}
+                  </div>
+                )}
               </div>
-              <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${onlineUsers.get(partner?._id) === 'online' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+              <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 border-2 border-white rounded-full ${
+                onlineUsers.get(partner?._id) === 'online' ? 'bg-emerald-500' : 'bg-slate-300'
+              }`} />
             </div>
-            <div>
-              <h2 className="font-bold text-gray-900 leading-tight">{partner?.name}</h2>
-              <p className="text-xs text-gray-500">
-                {onlineUsers.get(partner?._id) === 'online' ? 'Online' : 'Offline'}
+            <div className="min-w-0">
+              <h2 className="font-black text-slate-900 text-sm truncate">{partner?.name}</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {onlineUsers.get(partner?._id) === 'online' ? (
+                  <span className="text-emerald-500">Active Now</span>
+                ) : (
+                  'Offline'
+                )}
               </p>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="hidden md:inline-block px-3 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full">
-            {appointment?.topic}
-          </span>
-        </div>
       </nav>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:px-20 space-y-3 bg-[#e5ddd5] dark:bg-gray-900 custom-scrollbar" 
-           style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')" }}>
-        <div className="flex justify-center mb-4">
-          <span className="bg-white/80 backdrop-blur-sm px-4 py-1 rounded-lg text-xs text-gray-500 shadow-sm uppercase font-bold tracking-wider">
-            Appointment Approved
-          </span>
-        </div>
-
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`flex ${isMyMessage(msg) ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
-          >
-            <div
-              className={`max-w-[75%] px-4 py-2 rounded-2xl shadow-sm relative group ${
-                isMyMessage(msg)
-                  ? 'bg-[#dcf8c6] text-gray-800 rounded-tr-none'
-                  : 'bg-white text-gray-800 rounded-tl-none'
-              }`}
-            >
-              <p className="text-sm md:text-base leading-relaxed">{msg.message}</p>
-              <div className="flex items-center justify-end gap-1 mt-1">
-                <p className="text-[10px] text-gray-500">
-                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
-                {isMyMessage(msg) && (
-                  <span className={`text-[10px] ${msg.seen ? 'text-blue-500' : 'text-gray-400'}`}>
-                    ✓✓
-                  </span>
-                )}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
+        <div className="flex flex-col gap-4 max-w-4xl mx-auto">
+          {messages.map((msg, index) => {
+            const isMe = isMyMessage(msg);
+            return (
+              <div
+                key={msg._id || index}
+                className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`max-w-[85%] md:max-w-[70%] px-4 py-3 rounded-2xl shadow-sm relative group ${
+                  isMe 
+                    ? 'bg-blue-600 text-white rounded-br-none shadow-blue-200' 
+                    : 'bg-white text-slate-800 rounded-bl-none'
+                }`}>
+                  <p className="text-sm leading-relaxed">{msg.message}</p>
+                  <div className={`flex items-center gap-1 mt-1.5 ${isMe ? 'justify-end text-blue-100' : 'justify-start text-slate-400'}`}>
+                    <span className="text-[9px] font-bold uppercase">
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {isMe && <CheckCheck size={12} className={msg.seen ? "text-blue-200" : "opacity-50"} />}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          
+          {isTyping && (
+            <div className="flex justify-start">
+              <div className="bg-white px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" />
               </div>
             </div>
-          </div>
-        ))}
-
-        {isTyping && (
-          <div className="flex justify-start animate-pulse">
-            <div className="bg-white px-4 py-2 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
+          )}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      {/* Modern Message Input */}
-      <div className="bg-[#f0f2f5] px-4 py-3 md:px-20">
-        <form onSubmit={handleSendMessage} className="flex items-center gap-3">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={handleTyping}
-            placeholder="Type a message"
-            className="flex-1 bg-white border-none rounded-full px-6 py-3 focus:ring-2 focus:ring-green-500 shadow-sm"
-          />
-          <button
-            type="submit"
-            disabled={!newMessage.trim()}
-            className="w-12 h-12 bg-[#00a884] text-white rounded-full flex items-center justify-center hover:bg-[#008f6f] transition-all disabled:opacity-50 disabled:grayscale shadow-md"
-          >
-            <svg className="w-6 h-6 rotate-90" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-            </svg>
-          </button>
-        </form>
+      {/* Input Area */}
+      <div className="p-4 bg-white border-t border-slate-100 shrink-0">
+        <div className="max-w-4xl mx-auto">
+          <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+            <div className="flex-1 relative flex items-center">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => {
+                  setNewMessage(e.target.value);
+                  handleTyping();
+                }}
+                placeholder="Type your message..."
+                className="w-full bg-slate-100 border-none rounded-2xl px-5 py-3.5 text-sm focus:ring-2 focus:ring-blue-500/20 placeholder:text-slate-400"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!newMessage.trim()}
+              className="bg-blue-600 text-white p-3.5 rounded-2xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:active:scale-100 transition-all"
+            >
+              <Send size={20} />
+            </button>
+          </form>
+          {/* Safe Area Padding for Mobile */}
+          <div className="h-2 md:hidden" />
+        </div>
       </div>
     </div>
   );

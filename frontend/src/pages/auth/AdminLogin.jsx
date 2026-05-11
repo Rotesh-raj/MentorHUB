@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import Select from "react-select";
+import Input from "../../components/ui/Input";
+import Button from "../../components/ui/Button";
+import Card from "../../components/ui/Card";
 
 const BANGALORE_COLLEGES = [
   { value: "Dayananda Sagar College of Engineering (DSCE)", label: "Dayananda Sagar College of Engineering (DSCE)" },
@@ -112,224 +115,193 @@ export default function AdminLogin() {
     }
   };
 
-  /* ─────────────── INPUT CLASS ─────────────── */
-  const inputCls =
-    "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white";
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <form
-        onSubmit={submit}
-        className="bg-white/80 backdrop-blur-sm p-8 shadow-2xl rounded-3xl w-full max-w-md space-y-5 border border-white/50"
-      >
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
+      <Card className="w-full max-w-md space-y-6">
         {/* Header */}
         <div className="text-center">
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mb-1">
+          <h2 className="text-3xl font-black text-neutral-900 mb-1">
             Admin Portal
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-neutral-400 font-medium">
             {isLogin ? "Sign in to your account" : "Create new admin account"}
           </p>
         </div>
 
         {/* Toggle */}
-        <div className="flex bg-gray-100 rounded-xl p-1">
+        <div className="flex bg-neutral-100 rounded-xl p-1">
           <button
             type="button"
-            id="tab-login"
             onClick={() => { setIsLogin(true); setError(""); }}
-            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
+            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-black transition-all ${
               isLogin
-                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-                : "text-gray-600 hover:text-blue-600"
+                ? "bg-white text-primary-600 shadow-sm"
+                : "text-neutral-500 hover:text-primary-600"
             }`}
           >
-            Login
+            LOGIN
           </button>
           <button
             type="button"
-            id="tab-register"
             onClick={() => { setIsLogin(false); setError(""); }}
-            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
+            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-black transition-all ${
               !isLogin
-                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-                : "text-gray-600 hover:text-blue-600"
+                ? "bg-white text-primary-600 shadow-sm"
+                : "text-neutral-500 hover:text-primary-600"
             }`}
           >
-            Register
+            REGISTER
           </button>
         </div>
-
-
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-            <p className="text-red-700 text-sm">{error}</p>
+          <div className="bg-red-50 border border-red-100 rounded-xl p-3 animate-in fade-in slide-in-from-top-2">
+            <p className="text-red-600 text-xs font-bold">{error}</p>
           </div>
         )}
 
-        {/* ═══════════ LOGIN FORM ═══════════ */}
-        {isLogin && (
-          <>
-            <input
-              id="login-email"
-              className={inputCls}
-              placeholder="Email *"
-              type="email"
-              value={loginEmail}
-              onChange={(e) => setLoginEmail(e.target.value)}
-              disabled={loading}
-              autoComplete="email"
-            />
-            <input
-              id="login-password"
-              className={inputCls}
-              placeholder="Password *"
-              type="password"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              disabled={loading}
-              autoComplete="current-password"
-            />
-            <div className="flex justify-end px-1">
-              <Link
-                to="/admin/forgot-password"
-                className="text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors"
-              >
-                Forgot Password?
-              </Link>
-            </div>
-          </>
-        )}
-
-        {/* ═══════════ REGISTER FORM ═══════════ */}
-        {!isLogin && (
-          <>
-            <select
-              id="reg-role"
-              className={inputCls}
-              value={regRole}
-              onChange={(e) => setRegRole(e.target.value)}
-              disabled={loading}
-              required
-            >
-              <option value="" disabled>Select Role *</option>
-              <option value="admin">Admin</option>
-              <option value="superadmin">SuperAdmin</option>
-            </select>
-
-            <input
-              id="reg-name"
-              className={inputCls}
-              placeholder={regRole === "superadmin" ? "SuperAdmin Name *" : "Admin Name *"}
-              value={regName}
-              onChange={(e) => setRegName(e.target.value)}
-              disabled={loading}
-            />
-            {/* ✅ College Searchable Dropdown */}
-            <Select
-              options={BANGALORE_COLLEGES}
-              value={regCollege}
-              onChange={(selected) => setRegCollege(selected)}
-              placeholder="Select College *"
-              isSearchable
-              isDisabled={loading}
-              styles={{
-                control: (base, state) => ({
-                  ...base,
-                  padding: "6px 8px",
-                  borderRadius: "0.75rem",
-                  borderColor: state.isFocused ? "#3b82f6" : "#d1d5db",
-                  boxShadow: state.isFocused ? "0 0 0 2px rgba(59, 130, 246, 0.5)" : "none",
-                  "&:hover": { borderColor: "#3b82f6" },
-                  backgroundColor: "white",
-                }),
-                menu: (base) => ({
-                  ...base,
-                  borderRadius: "0.75rem",
-                  overflow: "hidden",
-                }),
-              }}
-            />
-
-            {regCollege?.value === "Other College" && (
-              <input
-                id="reg-custom-college"
-                className={inputCls}
-                placeholder="Enter your College Name *"
-                value={customCollege}
-                onChange={(e) => setCustomCollege(e.target.value)}
+        <form onSubmit={submit} className="space-y-4">
+          {isLogin ? (
+            <>
+              <Input
+                label="Email Address"
+                placeholder="admin@college.edu"
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
                 disabled={loading}
               />
-            )}
-            
-            {regRole !== "superadmin" && (
-              <input
-                id="reg-department"
-                className={inputCls}
-                placeholder="Department *"
-                value={regDepartment}
-                onChange={(e) => setRegDepartment(e.target.value)}
+              <Input
+                label="Password"
+                placeholder="••••••••"
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
                 disabled={loading}
               />
-            )}
-            <input
-              id="reg-email"
-              className={inputCls}
-              placeholder="Email *"
-              type="email"
-              value={regEmail}
-              onChange={(e) => setRegEmail(e.target.value)}
-              disabled={loading}
-              autoComplete="email"
-            />
-            <input
-              id="reg-password"
-              className={inputCls}
-              placeholder="Password * (min 6 chars)"
-              type="password"
-              value={regPassword}
-              onChange={(e) => setRegPassword(e.target.value)}
-              disabled={loading}
-            />
-            {/* ✅ Confirm password field */}
-            <input
-              id="reg-confirm"
-              className={inputCls}
-              placeholder="Confirm Password *"
-              type="password"
-              value={regConfirm}
-              onChange={(e) => setRegConfirm(e.target.value)}
-              disabled={loading}
-            />
-          </>
-        )}
-
-        {/* Submit */}
-        <button
-          id="auth-submit"
-          type="submit"
-          disabled={loading}
-          className="w-full bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-900 hover:to-black text-white py-4 px-6 rounded-2xl font-semibold text-lg shadow-xl transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-        >
-          {loading ? (
-            <span className="flex items-center justify-center gap-2">
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Processing...
-            </span>
+              <div className="flex justify-end">
+                <Link
+                  to="/forgot-password?role=admin"
+                  className="text-xs font-black text-neutral-400 hover:text-primary-600 uppercase tracking-widest transition-colors"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
+            </>
           ) : (
-            isLogin ? "Sign In" : "Create Account"
-          )}
-        </button>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-neutral-500 uppercase tracking-widest pl-1">Role</label>
+                <select
+                  className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                  value={regRole}
+                  onChange={(e) => setRegRole(e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="" disabled>Select Role</option>
+                  <option value="admin">Admin</option>
+                  <option value="superadmin">SuperAdmin</option>
+                </select>
+              </div>
 
-        {/* Footer */}
+              <Input
+                label="Full Name"
+                placeholder="John Doe"
+                value={regName}
+                onChange={(e) => setRegName(e.target.value)}
+                disabled={loading}
+              />
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-neutral-500 uppercase tracking-widest pl-1">College</label>
+                <Select
+                  options={BANGALORE_COLLEGES}
+                  value={regCollege}
+                  onChange={(selected) => setRegCollege(selected)}
+                  placeholder="Select College"
+                  isSearchable
+                  isDisabled={loading}
+                  styles={{
+                    control: (base, state) => ({
+                      ...base,
+                      padding: "4px 8px",
+                      borderRadius: "0.75rem",
+                      borderColor: state.isFocused ? "#0ea5e9" : "#f1f5f9",
+                      backgroundColor: "#f8fafc",
+                      boxShadow: "none",
+                      "&:hover": { borderColor: "#0ea5e9" },
+                    }),
+                    placeholder: (base) => ({ ...base, color: "#94a3b8", fontSize: "14px", fontWeight: "500" }),
+                    menu: (base) => ({ ...base, borderRadius: "0.75rem", padding: "4px" }),
+                  }}
+                />
+              </div>
+
+              {regCollege?.value === "Other College" && (
+                <Input
+                  label="College Name"
+                  placeholder="Custom College Name"
+                  value={customCollege}
+                  onChange={(e) => setCustomCollege(e.target.value)}
+                  disabled={loading}
+                />
+              )}
+              
+              {regRole !== "superadmin" && (
+                <Input
+                  label="Department"
+                  placeholder="CSE / ISE / ME"
+                  value={regDepartment}
+                  onChange={(e) => setRegDepartment(e.target.value)}
+                  disabled={loading}
+                />
+              )}
+
+              <Input
+                label="Email"
+                type="email"
+                placeholder="admin@college.edu"
+                value={regEmail}
+                onChange={(e) => setRegEmail(e.target.value)}
+                disabled={loading}
+              />
+
+              <Input
+                label="Password"
+                type="password"
+                placeholder="Min 6 characters"
+                value={regPassword}
+                onChange={(e) => setRegPassword(e.target.value)}
+                disabled={loading}
+              />
+
+              <Input
+                label="Confirm Password"
+                type="password"
+                placeholder="Re-enter password"
+                value={regConfirm}
+                onChange={(e) => setRegConfirm(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 text-lg"
+          >
+            {loading ? "PROCESSING..." : isLogin ? "SIGN IN" : "CREATE ACCOUNT"}
+          </Button>
+        </form>
+
         <div className="text-center pt-2">
-          <Link to="/" className="text-sm text-gray-600 hover:text-blue-600 font-medium transition-colors">
+          <Link to="/" className="text-[10px] font-black text-neutral-400 hover:text-primary-600 uppercase tracking-widest transition-colors">
             ← Back to Home
           </Link>
         </div>
-      </form>
+      </Card>
     </div>
   );
 }

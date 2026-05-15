@@ -348,8 +348,10 @@ const Landing = () => {
         </div>
         <div className="max-w-7xl mx-auto px-6 pt-8 border-t border-slate-800/50 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-medium">
           <p>&copy; 2026 MentorHub. All rights reserved.</p>
-          <div className="flex gap-6 opacity-60">
-            <span>Built with MERN + Socket.io + AI Assistant</span>
+          <div className="flex gap-6">
+            <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-400 bg-clip-text text-transparent font-semibold tracking-wide hover:from-blue-300 hover:via-indigo-300 hover:to-violet-300 transition-all duration-300 cursor-default select-none">
+              Powered by MentorHUB
+            </span>
           </div>
         </div>
       </footer>

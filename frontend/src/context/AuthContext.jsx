@@ -13,7 +13,12 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  // 🚀 SYNC INITIALIZATION: Prevents flash of unauth and redirect loops
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem("user");
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  
   const [loading, setLoading] = useState(true);
   const [tokenExpiresIn, setTokenExpiresIn] = useState(null);
   /* ================= LOGOUT ================= */
@@ -39,13 +44,22 @@ export const AuthProvider = ({ children }) => {
 
       if (token) {
         try {
-          // Token is already attached by axios interceptor — no need to set header manually
+          // Verify with backend
           const response = await api.get("/auth/me");
-          setUser(response.data);
+          
+          // Update state with fresh data from backend
+          const userData = response.data;
+          setUser(userData);
+          localStorage.setItem("user", JSON.stringify(userData));
         } catch (error) {
-          // Token invalid/expired — clear state
-          logout();
+          console.warn("Auth validation failed:", error.response?.data?.message || error.message);
+          // Only logout if it's a real 401 error, not a network error
+          if (error.response?.status === 401) {
+            logout();
+          }
         }
+      } else {
+        setUser(null);
       }
 
       setLoading(false);
@@ -57,10 +71,16 @@ export const AuthProvider = ({ children }) => {
   /* ================= LOGIN ================= */
   const login = async (email, password) => {
     try {
+      console.log(`Attempting login for: ${email}`);
       const response = await api.post("/auth/login", { email, password });
 
       const { token, user: userData, tokenExpiresIn: expiresIn } = response.data;
+      
+      console.log("✅ LOGIN SUCCESS:", response.data);
+      console.log("User Role:", userData.role);
+      console.log("Token:", token);
 
+      // Explicitly construct safe user data to ensure no extra fields bloat localStorage
       const safeUserData = {
         _id: userData._id,
         name: userData.name,
@@ -69,18 +89,21 @@ export const AuthProvider = ({ children }) => {
         department: userData.department,
         year: userData.year,
         section: userData.section,
-        referenceId: userData.referenceId
+        referenceId: userData.referenceId,
+        sessionToken: userData.sessionToken // 🔥 Important for dummy check
       };
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(safeUserData));
 
+      // Update React State immediately
       setUser(userData);
       setTokenExpiresIn(expiresIn || 3600);
 
-      return userData; // 🔥 IMPORTANT
+      return userData; 
     } catch (error) {
-      console.error("LOGIN ERROR:", error.response?.data || error.message);
+      const errorMsg = error.response?.data?.message || error.message;
+      console.error("LOGIN FAILED:", errorMsg);
       throw error;
     }
   };

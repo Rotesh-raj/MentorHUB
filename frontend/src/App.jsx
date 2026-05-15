@@ -17,6 +17,10 @@ import PrivacyPolicy from "./pages/common/PrivacyPolicy";
 import TermsConditions from "./pages/common/TermsConditions";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
+import StudentForgotPassword from "./pages/auth/StudentForgotPassword";
+import TeacherForgotPassword from "./pages/auth/TeacherForgotPassword";
+import AdminForgotPassword from "./pages/auth/AdminForgotPassword";
+import SuperAdminForgotPassword from "./pages/auth/SuperAdminForgotPassword";
 
 /* ================= ADMIN ================= */
 import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
@@ -54,9 +58,19 @@ function App() {
         {/* ================= PUBLIC ROUTES ================= */}
         <Route path="/" element={<Landing />} />
         
-        {/* 🔥 Forgot & Reset (Unified High-Security) */}
+        {/* 🔥 Forgot Password Routes */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/student/forgot-password" element={<StudentForgotPassword />} />
+        <Route path="/teacher/forgot-password" element={<TeacherForgotPassword />} />
+        <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
+        <Route path="/superadmin/forgot-password" element={<SuperAdminForgotPassword />} />
+
+        {/* 🔑 Reset Password Routes — supports both query-param and path-param token formats */}
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/student/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/teacher/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/admin/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/superadmin/reset-password/:token" element={<ResetPassword />} />
         
         {/* Auth Pages */}
         <Route path="/admin-auth" element={<AdminAuth />} />
@@ -69,7 +83,7 @@ function App() {
         
         {/* SuperAdmin */}
         <Route
-          path="/superadmin"
+          path="/superadmin/dashboard"
           element={
             <ProtectedRoute allowedRoles={['superadmin']}>
               <SuperAdminDashboard />
@@ -78,6 +92,14 @@ function App() {
         />
 
         {/* Admin Dashboard & Sub-routes */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/admin"
           element={
@@ -92,6 +114,14 @@ function App() {
         </Route>
 
         {/* Student Dashboard & Sub-routes */}
+        <Route
+          path="/student/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <StudentDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/student"
           element={
@@ -134,6 +164,14 @@ function App() {
         />
 
         {/* Teacher Dashboard & Sub-routes */}
+        <Route
+          path="/teacher/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <TeacherDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/teacher"
           element={

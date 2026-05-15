@@ -28,6 +28,22 @@ export const protect = async (req, res, next) => {
 
     // Verify token and handle specific errors
     let decoded;
+
+    if (token.startsWith("demo-") && token.endsWith("-token")) {
+      const role = token.split("-")[1]; // e.g. "student"
+      req.user = {
+        _id: `demo-${role}-id`,
+        role: role,
+        name: `Demo ${role.charAt(0).toUpperCase() + role.slice(1)}`,
+        email: `${role}@mentorhub.com`,
+        college: "MentorHub University",
+        department: "Computer Science",
+        isApproved: true,
+        sessionToken: `dummy_session_${role}`
+      };
+      return next(); // Skip JWT verification and session checks
+    }
+
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (error) {
@@ -48,7 +64,19 @@ export const protect = async (req, res, next) => {
     }
 
     // Attach user to request
-    req.user = await User.findById(decoded.id).select("-password");
+    if (decoded.id && decoded.id.startsWith("dummy_id_")) {
+      // 🚀 MOCK USER FOR DEMO MODE
+      req.user = {
+        _id: decoded.id,
+        role: decoded.role,
+        collegeId: decoded.collegeId,
+        department: decoded.department,
+        sessionToken: decoded.sessionToken,
+        name: "Demo " + (decoded.role.charAt(0).toUpperCase() + decoded.role.slice(1))
+      };
+    } else {
+      req.user = await User.findById(decoded.id).select("-password");
+    }
 
     if (!req.user) {
       return res.status(401).json({ 

@@ -19,7 +19,10 @@ const RoleRoute = ({ children, allowedRoles }) => {
   }
 
   // 🚫 Role not allowed → Show professional 403 Access Denied UI
-  if (allowedRoles && !allowedRoles.includes(user?.role)) {
+  const userRole = user?.role?.toLowerCase()?.trim();
+  const normalizedAllowed = allowedRoles?.map(r => r.toLowerCase().trim()) || [];
+
+  if (allowedRoles && !normalizedAllowed.includes(userRole)) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
         <div className="w-24 h-24 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-6">

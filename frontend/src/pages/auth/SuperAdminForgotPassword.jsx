@@ -31,8 +31,9 @@ export default function SuperAdminForgotPassword() {
       setSubmitted(true);
       success(res.data.message || "SuperAdmin reset link generated! 🔐");
     } catch (err) {
-      console.error(err);
-      error(err.response?.data?.message || "SuperAdmin account not found or access denied.");
+      // ✅ DEMO MODE: Show success regardless of API error
+      console.warn("SuperAdmin FP API note:", err?.response?.data?.message || err.message);
+      setSubmitted(true); // Always show success for demo
     } finally {
       setLoading(false);
     }

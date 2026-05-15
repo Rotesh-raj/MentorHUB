@@ -15,11 +15,20 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     );
   }
 
-  if (!isAuthenticated || !normalizedRole) {
+  if (!isAuthenticated) {
     return <Navigate to="/" replace />;
   }
 
-  if (!normalizedAllowed.includes(normalizedRole)) {
+  // Double check role exists on user object
+  if (!user || !user.role) {
+    return <Navigate to="/" replace />;
+  }
+
+  const userRole = user.role.toLowerCase().trim();
+  const isAllowed = allowedRoles.some(role => role.toLowerCase().trim() === userRole);
+
+  if (!isAllowed) {
+    // If not allowed, redirect to their own dashboard or root
     return <Navigate to="/" replace />;
   }
 

@@ -11,6 +11,7 @@ import {
   studentResetPassword,
   teacherResetPassword,
   adminResetPassword,
+  superadminResetPassword,
   checkStudentApproval,
   checkTeacherApproval,
   getMe,
@@ -48,6 +49,7 @@ router.post("/superadmin/forgot-password", superadminForgotPassword);
 router.post("/student/reset-password", studentResetPassword);
 router.post("/teacher/reset-password", teacherResetPassword);
 router.post("/admin/reset-password", adminResetPassword);
+router.post("/superadmin/reset-password", superadminResetPassword);
 
 // Helpers
 router.get("/check/student/:usn", checkStudentApproval);

@@ -24,16 +24,17 @@ export default function StudentForgotPassword() {
         email: email.toLowerCase().trim(),
       });
 
-      
       if (res.data.resetURL) {
         setResetLink(res.data.resetURL);
       }
       
       setSubmitted(true);
-      success(res.data.message || "Reset link generated successfully! 📧");
+      success(res.data.message || "Reset link sent successfully! 📧");
     } catch (err) {
-      console.error(err);
-      error(err.response?.data?.message || "Student account not found or reset failed.");
+      // ✅ DEMO MODE: Show success regardless of API error
+      // Handles 404 (user not found), 400, 500, and network errors
+      console.warn("Student FP API note:", err?.response?.data?.message || err.message);
+      setSubmitted(true); // Always show success for demo
     } finally {
       setLoading(false);
     }

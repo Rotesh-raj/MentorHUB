@@ -37,6 +37,9 @@ import { autoDeleteOldAvailability } from "./controllers/availability.controller
 const app = express();
 const httpServer = createServer(app);
 
+// ✅ Trust Render's reverse proxy (fixes X-Forwarded-For ValidationError & rate-limit issues)
+app.set("trust proxy", 1);
+
 /* ================= DATABASE ================= */
 connectDB();
 

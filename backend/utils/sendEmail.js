@@ -1,8 +1,15 @@
 import nodemailer from "nodemailer";
 
 /**
- * High-Security Email Utility with Timeout Protection
- * Prevents server hanging (ERR_EMPTY_RESPONSE) during SMTP operations
+ * Production-Safe Email Utility — MentorHUB
+ *
+ * Changes from previous version:
+ *  - Timeouts increased from 5s → 30s  (Render cold-start SMTP latency)
+ *  - requireTLS: true                  (force STARTTLS upgrade on port 587)
+ *  - tls.rejectUnauthorized: false     (allow self-signed certs on some SMTP relays)
+ *  - Removed Promise.race verify()     (verify() is non-essential and was causing
+ *                                       false-positive timeouts on Render)
+ *  - host read from process.env        (allows overriding SMTP host via .env)
  */
 const sendEmail = async ({ email, subject, message }) => {
   try {
@@ -11,34 +18,34 @@ const sendEmail = async ({ email, subject, message }) => {
       return false;
     }
 
-    // Create transporter with strict timeout settings
+    // ── Transporter (production-safe config) ────────────────────────────────
     const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
+      host: process.env.EMAIL_HOST || "smtp.gmail.com",
       port: 587,
-      secure: false, // true for 465, false for other ports
+      secure: false,       // false = STARTTLS on port 587
+      requireTLS: true,    // enforce TLS upgrade — do NOT fall back to plaintext
+
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-      connectionTimeout: 5000, // 5 seconds
-      greetingTimeout: 5000,
-      socketTimeout: 5000,
+
+      tls: {
+        rejectUnauthorized: false, // allow Render's outbound TLS without strict CA check
+      },
+
+      // Generous timeouts for Render's cold-start & network latency
+      connectionTimeout: 30000,  // 30 s
+      greetingTimeout:   30000,  // 30 s
+      socketTimeout:     30000,  // 30 s
     });
 
-    // Verify SMTP connection with Race to prevent hanging
-    await Promise.race([
-      transporter.verify(),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("SMTP Connection Timeout")), 5000)
-      ),
-    ]);
-
-    // Send Mail
+    // ── Send ────────────────────────────────────────────────────────────────
     const info = await transporter.sendMail({
-      from: `MentorHub <${process.env.EMAIL_USER}>`,
-      to: email,
+      from:    `MentorHub <${process.env.EMAIL_USER}>`,
+      to:      email,
       subject: subject,
-      html: message,
+      html:    message,
     });
 
     console.log(`✅ Email sent to ${email} | ID: ${info.messageId}`);
